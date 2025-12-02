@@ -1,0 +1,15 @@
+django>=4.2
+djangorestframework
+dj-database-url>=1.0
+psycopg2-binary>=2.9
+channels
+channels-redis
+daphne
+gunicorn
+uvicorn
+python-dotenv
+django-cors-headers
+djangorestframework-simplejwt
+django-filter
+Pillow
+PyJWT
