@@ -38,8 +38,11 @@ RUN mkdir -p /app/static /app/media /app/logs
 # Create a non-root user to run the app
 RUN addgroup --system django && adduser --system --ingroup django django
 
-# Note: Ownership will be handled by docker-compose volumes at runtime
-# Don't switch to django user yet - docker-compose command needs root for migrations
+# Set ownership of app directories
+RUN chown -R django:django /app
+
+# Switch to non-root user
+USER django
 
 # Expose port
 EXPOSE 8000
@@ -47,5 +50,5 @@ EXPOSE 8000
 # Set entrypoint
 ENTRYPOINT ["/app/entrypoint.sh"]
 
-# Run the application (this becomes the argument to entrypoint)
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "--timeout", "120", "task_manager.asgi:application", "-k", "uvicorn.workers.UvicornWorker"]
+# Run the application with Daphne (supports WebSockets via Django Channels)
+CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "task_manager.asgi:application"]

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -6,17 +7,17 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
   Calendar, 
   User, 
-  AlertCircle, 
   MoreVertical, 
   Paperclip,
   MessageSquare,
-  CheckCircle,
-  Clock
+  ExternalLink,
+  Flame
 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { Task, TaskStatus } from '@/types';
@@ -30,27 +31,27 @@ interface TaskCardProps {
   onClick?: () => void;
 }
 
-const statusColors: Record<TaskStatus, string> = {
-  todo: 'bg-gray-100 text-gray-800 border-gray-300',
-  in_progress: 'bg-blue-100 text-blue-800 border-blue-300',
-  review: 'bg-purple-100 text-purple-800 border-purple-300',
-  done: 'bg-green-100 text-green-800 border-green-300',
-  cancelled: 'bg-red-100 text-red-800 border-red-300',
+const statusColors: Record<TaskStatus, { bg: string; text: string; dot: string }> = {
+  todo: { bg: 'bg-slate-50', text: 'text-slate-600', dot: 'bg-slate-400' },
+  in_progress: { bg: 'bg-violet-50', text: 'text-violet-600', dot: 'bg-violet-500' },
+  review: { bg: 'bg-amber-50', text: 'text-amber-600', dot: 'bg-amber-500' },
+  done: { bg: 'bg-emerald-50', text: 'text-emerald-600', dot: 'bg-emerald-500' },
+  cancelled: { bg: 'bg-rose-50', text: 'text-rose-600', dot: 'bg-rose-500' },
 };
 
-const statusIcons: Record<TaskStatus, React.ReactNode> = {
-  todo: <Clock className="h-3 w-3" />,
-  in_progress: <Clock className="h-3 w-3" />,
-  review: <AlertCircle className="h-3 w-3" />,
-  done: <CheckCircle className="h-3 w-3" />,
-  cancelled: <AlertCircle className="h-3 w-3" />,
+const statusLabels: Record<TaskStatus, string> = {
+  todo: 'To Do',
+  in_progress: 'In Progress',
+  review: 'In Review',
+  done: 'Done',
+  cancelled: 'Cancelled',
 };
 
-const priorityColors: Record<string, string> = {
-  low: 'bg-blue-100 text-blue-800',
-  normal: 'bg-green-100 text-green-800',
-  high: 'bg-yellow-100 text-yellow-800',
-  urgent: 'bg-red-100 text-red-800',
+const priorityConfig: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
+  low: { bg: 'bg-slate-100', text: 'text-slate-600', icon: null },
+  normal: { bg: 'bg-blue-50', text: 'text-blue-600', icon: null },
+  high: { bg: 'bg-orange-50', text: 'text-orange-600', icon: <Flame className="h-3 w-3" /> },
+  urgent: { bg: 'bg-rose-50', text: 'text-rose-600', icon: <Flame className="h-3 w-3" /> },
 };
 
 const priorityText: Record<string, string> = {
@@ -61,10 +62,12 @@ const priorityText: Record<string, string> = {
 };
 
 export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick }) => {
+  const navigate = useNavigate();
   const { updateTaskStatus } = useTaskStore();
   const { user } = useAuthStore();
 
-  const handleStatusChange = async (newStatus: TaskStatus) => {
+  const handleStatusChange = async (newStatus: TaskStatus, e: React.MouseEvent) => {
+    e.stopPropagation();
     try {
       await updateTaskStatus(task.id, newStatus);
     } catch (error) {
@@ -72,11 +75,19 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick }) => {
     }
   };
 
+  const handleCardClick = () => {
+    if (onClick) {
+      onClick();
+    } else {
+      navigate(`/tasks/${task.id}`);
+    }
+  };
+
   const getStatusOptions = () => {
     const baseOptions: { label: string; value: TaskStatus }[] = [
       { label: 'To Do', value: 'todo' },
       { label: 'In Progress', value: 'in_progress' },
-      { label: 'Review', value: 'review' },
+      { label: 'In Review', value: 'review' },
       { label: 'Done', value: 'done' },
     ];
 
@@ -91,43 +102,78 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick }) => {
     user?.role === 'atl' || 
     task.assigned_to.some(u => u.id === user?.id);
 
-  const isOverdue = task.due_date && new Date(task.due_date) < new Date();
+  const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'done';
+  const statusStyle = statusColors[task.status];
+  const priorityStyle = priorityConfig[task.priority];
+
+  const getInitials = (firstName?: string, lastName?: string, username?: string) => {
+    if (firstName && lastName) {
+      return `${firstName[0]}${lastName[0]}`.toUpperCase();
+    }
+    return username?.charAt(0).toUpperCase() || '?';
+  };
 
   return (
     <Card 
       className={cn(
-        'hover:shadow-lg transition-shadow cursor-pointer',
-        isOverdue && 'border-red-300 border-2'
+        'group relative overflow-hidden border-violet-100/50 bg-white/80 backdrop-blur-sm hover:shadow-xl hover:shadow-violet-500/10 transition-all duration-300 cursor-pointer hover:border-violet-200 hover:-translate-y-1',
+        isOverdue && 'border-rose-200 bg-rose-50/30'
       )}
-      onClick={onClick}
+      onClick={handleCardClick}
     >
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <CardTitle className="text-lg font-semibold line-clamp-1">
+      {/* Priority indicator bar */}
+      <div className={cn(
+        "absolute top-0 left-0 right-0 h-1",
+        task.priority === 'urgent' ? 'bg-gradient-to-r from-rose-500 to-pink-500' :
+        task.priority === 'high' ? 'bg-gradient-to-r from-orange-500 to-amber-500' :
+        task.priority === 'normal' ? 'bg-gradient-to-r from-violet-500 to-fuchsia-500' :
+        'bg-gradient-to-r from-slate-300 to-slate-400'
+      )} />
+      
+      <CardHeader className="pb-3 pt-5">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <CardTitle className="text-base font-semibold text-slate-800 line-clamp-1 group-hover:text-violet-700 transition-colors">
               {task.title}
             </CardTitle>
-            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-              {task.description}
-            </p>
+            {task.description && (
+              <p className="text-sm text-slate-500 mt-1.5 line-clamp-2 leading-relaxed">
+                {task.description}
+              </p>
+            )}
           </div>
           {canEditTask && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
-                  <MoreVertical className="h-4 w-4" />
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-violet-100"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <MoreVertical className="h-4 w-4 text-slate-500" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem
+                  onClick={(e: any) => {
+                    e.stopPropagation();
+                    navigate(`/tasks/${task.id}`);
+                  }}
+                  className="gap-2"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  View Details
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 {getStatusOptions().map((option) => (
                   <DropdownMenuItem
                     key={option.value}
-                    onClick={(e:any) => {
-                      e.stopPropagation();
-                      handleStatusChange(option.value);
-                    }}
+                    onClick={(e: any) => handleStatusChange(option.value, e)}
+                    className="gap-2"
                   >
-                    {option.label}
+                    <div className={cn("w-2 h-2 rounded-full", statusColors[option.value].dot)} />
+                    Mark as {option.label}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
@@ -138,43 +184,53 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick }) => {
       <CardContent className="pt-0">
         <div className="space-y-3">
           {/* Status and Priority */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Badge 
               variant="outline" 
               className={cn(
-                'flex items-center gap-1',
-                statusColors[task.status]
+                'flex items-center gap-1.5 text-xs font-medium border-0 px-2.5 py-1',
+                statusStyle.bg, statusStyle.text
               )}
             >
-              {statusIcons[task.status]}
-              {task.status.replace('_', ' ')}
+              <div className={cn("w-1.5 h-1.5 rounded-full", statusStyle.dot)} />
+              {statusLabels[task.status]}
             </Badge>
             <Badge 
               variant="outline"
-              className={priorityColors[task.priority]}
+              className={cn('flex items-center gap-1 text-xs font-medium border-0 px-2.5 py-1', priorityStyle.bg, priorityStyle.text)}
             >
+              {priorityStyle.icon}
               {priorityText[task.priority]}
             </Badge>
+            {isOverdue && (
+              <Badge className="bg-rose-500 text-white text-xs border-0 px-2.5 py-1 animate-pulse">
+                Overdue
+              </Badge>
+            )}
           </div>
 
           {/* Assigned Users */}
           <div className="flex items-center gap-2">
-            <User className="h-4 w-4 text-muted-foreground" />
-            <div className="flex -space-x-2">
-              {task.assigned_to.slice(0, 3).map((user) => (
-                <Avatar key={user.id} className="h-6 w-6 border-2 border-background">
-                  <AvatarImage src={user.avatar} />
-                  <AvatarFallback>
-                    {user.username?.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              ))}
-              {task.assigned_to.length > 3 && (
-                <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-xs border-2 border-background">
-                  +{task.assigned_to.length - 3}
-                </div>
-              )}
-            </div>
+            <User className="h-4 w-4 text-slate-400" />
+            {task.assigned_to.length === 0 ? (
+              <span className="text-sm text-slate-400 italic">Unassigned</span>
+            ) : (
+              <div className="flex -space-x-2">
+                {task.assigned_to.slice(0, 4).map((assignee) => (
+                  <Avatar key={assignee.id} className="h-7 w-7 border-2 border-white ring-1 ring-violet-100">
+                    <AvatarImage src={assignee.avatar} />
+                    <AvatarFallback className="text-xs bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white font-medium">
+                      {getInitials(assignee.first_name, assignee.last_name, assignee.username)}
+                    </AvatarFallback>
+                  </Avatar>
+                ))}
+                {task.assigned_to.length > 4 && (
+                  <div className="h-7 w-7 rounded-full bg-violet-100 flex items-center justify-center text-xs font-semibold text-violet-600 border-2 border-white ring-1 ring-violet-100">
+                    +{task.assigned_to.length - 4}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Due Date */}
@@ -182,32 +238,33 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick }) => {
             <div className="flex items-center gap-2 text-sm">
               <Calendar className={cn(
                 "h-4 w-4",
-                isOverdue ? "text-red-500" : "text-muted-foreground"
+                isOverdue ? "text-rose-500" : "text-slate-400"
               )} />
               <span className={cn(
-                isOverdue && "text-red-600 font-medium"
+                "text-slate-500",
+                isOverdue && "text-rose-600 font-medium"
               )}>
-                {isOverdue ? 'Overdue' : 'Due'}: {formatDistanceToNow(new Date(task.due_date), { addSuffix: true })}
+                {formatDistanceToNow(new Date(task.due_date), { addSuffix: true })}
               </span>
             </div>
           )}
 
-          {/* Attachments and Comments */}
-          <div className="flex items-center justify-between pt-2 border-t">
+          {/* Footer */}
+          <div className="flex items-center justify-between pt-3 border-t border-violet-100/50">
             <div className="flex items-center gap-4">
-              {task.attachments.length > 0 && (
-                <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                  <Paperclip className="h-3 w-3" />
+              {task.attachments && task.attachments.length > 0 && (
+                <div className="flex items-center gap-1.5 text-sm text-slate-500">
+                  <Paperclip className="h-3.5 w-3.5" />
                   <span>{task.attachments.length}</span>
                 </div>
               )}
-              <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                <MessageSquare className="h-3 w-3" />
-                <span>0</span> {/* Would need to fetch comment count */}
+              <div className="flex items-center gap-1.5 text-sm text-slate-500">
+                <MessageSquare className="h-3.5 w-3.5" />
+                <span>0</span>
               </div>
             </div>
-            <div className="text-xs text-muted-foreground">
-              Updated {formatDistanceToNow(new Date(task.updated_at), { addSuffix: true })}
+            <div className="text-xs text-slate-400">
+              {formatDistanceToNow(new Date(task.updated_at), { addSuffix: true })}
             </div>
           </div>
         </div>

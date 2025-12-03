@@ -9,9 +9,12 @@ import {
   Menu,
   X,
   Activity,
+  Sparkles,
+  ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { useAuthStore } from '@/stores/auth.store';
 import { NotificationBell } from '@/components/NotificationBell';
 import { cn } from '@/lib/utils';
@@ -21,12 +24,19 @@ interface MainLayoutProps {
 }
 
 const navigationItems = [
-  { name: 'Dashboard', path: '/tasks', icon: LayoutDashboard },
-  { name: 'Chat', path: '/chat', icon: MessageSquare },
-  { name: 'Users', path: '/users', icon: Users, roles: ['supervisor', 'atl'] },
-  { name: 'Activity Logs', path: '/activity-logs', icon: Activity, roles: ['supervisor', 'atl'] },
-  { name: 'My Profile', path: '/profile', icon: User },
+  { name: 'Dashboard', path: '/tasks', icon: LayoutDashboard, description: 'Manage tasks' },
+  { name: 'Chat', path: '/chat', icon: MessageSquare, description: 'Team messaging' },
+  { name: 'Users', path: '/users', icon: Users, roles: ['supervisor', 'atl'], description: 'Team members' },
+  { name: 'Activity', path: '/activity-logs', icon: Activity, roles: ['supervisor', 'atl'], description: 'System logs' },
+  { name: 'Profile', path: '/profile', icon: User, description: 'Your account' },
 ];
+
+const roleLabels: Record<string, { label: string; color: string; bgColor: string }> = {
+  supervisor: { label: 'Supervisor', color: 'text-rose-700', bgColor: 'bg-rose-50 border-rose-200' },
+  atl: { label: 'Team Lead', color: 'text-amber-700', bgColor: 'bg-amber-50 border-amber-200' },
+  atm: { label: 'Team Member', color: 'text-violet-700', bgColor: 'bg-violet-50 border-violet-200' },
+  clerk: { label: 'Clerk', color: 'text-slate-700', bgColor: 'bg-slate-50 border-slate-200' },
+};
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -42,81 +52,160 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     return item.roles.includes(user?.role || '');
   });
 
+  const getInitials = () => {
+    if (user?.first_name && user?.last_name) {
+      return `${user.first_name[0]}${user.last_name[0]}`.toUpperCase();
+    }
+    return user?.username?.charAt(0).toUpperCase() || '?';
+  };
+
+  const getDisplayName = () => {
+    if (user?.first_name && user?.last_name) {
+      return `${user.first_name} ${user.last_name}`;
+    }
+    return user?.username || 'User';
+  };
+
+  const roleInfo = roleLabels[user?.role || ''] || roleLabels.clerk;
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-violet-50/50 via-white to-fuchsia-50/30">
+      {/* Mobile sidebar overlay */}
+      <div 
+        className={cn(
+          "lg:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm transition-all duration-300",
+          sidebarOpen ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"
+        )}
+        onClick={() => setSidebarOpen(false)}
+      />
+
       {/* Mobile sidebar */}
       <div className={cn(
-        "lg:hidden fixed inset-0 z-50 bg-black bg-opacity-50 transition-opacity",
-        sidebarOpen ? "opacity-100 visible" : "opacity-0 invisible"
+        "lg:hidden fixed inset-y-0 left-0 z-50 w-72 bg-white/95 backdrop-blur-xl shadow-2xl transform transition-transform duration-300 ease-out",
+        sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        <div className={cn(
-          "fixed inset-y-0 left-0 w-64 bg-sidebar transform transition-transform duration-300",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        )}>
-          <div className="flex items-center justify-between h-16 px-4 border-b">
-            <h2 className="text-lg font-semibold">Task Manager</h2>
-            <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)}>
-              <X className="h-5 w-5" />
-            </Button>
+        <div className="flex items-center justify-between h-16 px-5 border-b border-violet-100 bg-gradient-to-r from-violet-600 to-fuchsia-600">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 bg-white/20 rounded-lg">
+              <Sparkles className="h-5 w-5 text-white" />
+            </div>
+            <h2 className="text-lg font-bold text-white tracking-tight">TaskFlow</h2>
           </div>
-          <nav className="p-4 space-y-2">
-            {filteredNavItems.map((item) => (
+          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)} className="text-white hover:bg-white/10">
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+        <nav className="p-3 space-y-1">
+          {filteredNavItems.map((item) => {
+            const isActive = location.pathname === item.path || 
+              (item.path !== '/tasks' && location.pathname.startsWith(item.path));
+            return (
               <Link
                 key={item.name}
                 to={item.path}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2 rounded-lg transition-colors",
-                  location.pathname.startsWith(item.path)
-                    ? "bg-primary text-primary-foreground"
-                    : "hover:bg-accent"
+                  "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200",
+                  isActive
+                    ? "bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-lg shadow-violet-500/25"
+                    : "text-slate-600 hover:bg-violet-50 hover:text-violet-700"
                 )}
                 onClick={() => setSidebarOpen(false)}
               >
-                <item.icon className="h-5 w-5" />
-                <span>{item.name}</span>
+                <item.icon className={cn("h-5 w-5", isActive ? "text-white" : "")} />
+                <span className="font-medium">{item.name}</span>
               </Link>
-            ))}
-          </nav>
+            );
+          })}
+        </nav>
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-violet-100 bg-gradient-to-r from-violet-50/50 to-fuchsia-50/50">
+          <div className="flex items-center gap-3">
+            <Avatar className="h-11 w-11 ring-2 ring-violet-200 ring-offset-2">
+              <AvatarImage src={user?.avatar} />
+              <AvatarFallback className="bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white font-semibold">
+                {getInitials()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-slate-800 truncate">{getDisplayName()}</p>
+              <Badge variant="outline" className={cn("text-xs mt-0.5 font-medium border", roleInfo.bgColor, roleInfo.color)}>
+                {roleInfo.label}
+              </Badge>
+            </div>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={handleLogout} 
+              title="Logout"
+              className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Desktop sidebar */}
-      <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col lg:border-r">
-        <div className="flex h-16 items-center px-4 border-b">
-          <h1 className="text-xl font-bold">Task Manager</h1>
-        </div>
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          {filteredNavItems.map((item) => (
-            <Link
-              key={item.name}
-              to={item.path}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-lg transition-colors",
-                location.pathname.startsWith(item.path)
-                  ? "bg-primary text-primary-foreground"
-                  : "hover:bg-accent"
-              )}
-            >
-              <item.icon className="h-5 w-5" />
-              <span>{item.name}</span>
-            </Link>
-          ))}
-        </nav>
-        <div className="p-4 border-t">
-          <div className="flex items-center gap-3">
-            <Avatar>
-              <AvatarImage src={user?.avatar} />
-              <AvatarFallback>
-                {user?.username?.charAt(0).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{user?.username}</p>
-              <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
+      <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
+        <div className="flex flex-col flex-1 bg-white/80 backdrop-blur-xl border-r border-violet-100/50 shadow-xl shadow-violet-500/5">
+          <div className="flex h-16 items-center px-5 border-b border-violet-100 bg-gradient-to-r from-violet-600 via-violet-600 to-fuchsia-600">
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 bg-white/20 rounded-lg">
+                <Sparkles className="h-5 w-5 text-white" />
+              </div>
+              <h1 className="text-xl font-bold text-white tracking-tight">TaskFlow</h1>
             </div>
-            <Button variant="ghost" size="icon" onClick={handleLogout} title="Logout">
-              <LogOut className="h-4 w-4" />
-            </Button>
+          </div>
+          <nav className="flex-1 p-3 space-y-1 overflow-y-auto scrollbar-thin">
+            {filteredNavItems.map((item) => {
+              const isActive = location.pathname === item.path || 
+                (item.path !== '/tasks' && location.pathname.startsWith(item.path));
+              return (
+                <Link
+                  key={item.name}
+                  to={item.path}
+                  className={cn(
+                    "group flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-200",
+                    isActive
+                      ? "bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-lg shadow-violet-500/25"
+                      : "text-slate-600 hover:bg-violet-50 hover:text-violet-700"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <item.icon className={cn(
+                      "h-5 w-5 transition-colors",
+                      isActive ? "text-white" : "text-slate-400 group-hover:text-violet-500"
+                    )} />
+                    <span className={cn("font-medium", isActive && "font-semibold")}>{item.name}</span>
+                  </div>
+                  {isActive && <ChevronRight className="h-4 w-4 text-white/70" />}
+                </Link>
+              );
+            })}
+          </nav>
+          <div className="p-4 border-t border-violet-100 bg-gradient-to-r from-violet-50/80 to-fuchsia-50/80">
+            <div className="flex items-center gap-3">
+              <Avatar className="h-11 w-11 ring-2 ring-violet-200 ring-offset-2">
+                <AvatarImage src={user?.avatar} />
+                <AvatarFallback className="bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white font-semibold">
+                  {getInitials()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-800 truncate">{getDisplayName()}</p>
+                <Badge variant="outline" className={cn("text-xs mt-0.5 font-medium border", roleInfo.bgColor, roleInfo.color)}>
+                  {roleInfo.label}
+                </Badge>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={handleLogout} 
+                title="Logout"
+                className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl"
+              >
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -124,45 +213,45 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       {/* Main content */}
       <div className="lg:pl-64">
         {/* Header */}
-        <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b bg-background px-4 lg:px-6">
+        <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b border-violet-100/50 bg-white/80 backdrop-blur-xl px-4 lg:px-6 shadow-sm shadow-violet-500/5">
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden"
+            className="lg:hidden hover:bg-violet-50"
             onClick={() => setSidebarOpen(true)}
           >
-            <Menu className="h-5 w-5" />
+            <Menu className="h-5 w-5 text-slate-600" />
           </Button>
           
           <div className="flex-1">
-            <h1 className="text-lg font-semibold">
-              {navigationItems.find(item => location.pathname.startsWith(item.path))?.name || 'Dashboard'}
+            <h1 className="text-lg font-semibold text-slate-800">
+              {navigationItems.find(item => 
+                location.pathname === item.path || 
+                (item.path !== '/tasks' && location.pathname.startsWith(item.path))
+              )?.name || 'Dashboard'}
             </h1>
           </div>
           
           <div className="flex items-center gap-2">
             <NotificationBell />
             
-            <div className="hidden lg:flex items-center gap-3">
-              <Avatar className="h-8 w-8">
+            <div className="hidden md:flex items-center gap-3 pl-3 ml-2 border-l border-violet-100">
+              <Avatar className="h-9 w-9 ring-2 ring-violet-100">
                 <AvatarImage src={user?.avatar} />
-                <AvatarFallback>
-                  {user?.username?.charAt(0).toUpperCase()}
+                <AvatarFallback className="bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white text-sm font-medium">
+                  {getInitials()}
                 </AvatarFallback>
               </Avatar>
               <div className="flex flex-col">
-                <span className="text-sm font-medium">{user?.username}</span>
-                <span className="text-xs text-muted-foreground capitalize">{user?.role}</span>
+                <span className="text-sm font-semibold text-slate-800">{getDisplayName()}</span>
+                <span className="text-xs text-violet-600 font-medium">{roleInfo.label}</span>
               </div>
-              <Button variant="ghost" size="icon" onClick={handleLogout} title="Logout">
-                <LogOut className="h-4 w-4" />
-              </Button>
             </div>
           </div>
         </header>
 
         {/* Page content */}
-        <main className="p-4 lg:p-6">
+        <main className="p-4 lg:p-6 min-h-[calc(100vh-4rem)]">
           {children}
         </main>
       </div>

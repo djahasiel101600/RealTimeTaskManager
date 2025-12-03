@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Build outputs (we build in Docker)
+dist/
+build/
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+coverage/
+*.test.js.snap
+
+# Documentation
+*.md
+
+# Docker
+Dockerfile
+docker-compose*.yml
+
+# Environment
+.env
+.env.local
+.env*.local
+
+# Misc
+.DS_Store
+Thumbs.db
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

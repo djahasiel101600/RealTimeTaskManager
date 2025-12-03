@@ -15,8 +15,9 @@ interface ChatState {
   rooms: ChatRoom[];
   activeRoom: ChatRoom | null;
   messages: Message[];
-  typingUsers: Map<number, TypingStatus>;
+  typingUsers: Record<number, TypingStatus>;  // Changed from Map to Record for serialization
   isLoading: boolean;
+  error: string | null;
   
   fetchRooms: () => Promise<void>;
   fetchRoom: (roomId: number) => Promise<ChatRoom>;
@@ -28,7 +29,22 @@ interface ChatState {
   markMessagesAsRead: (roomId: number) => Promise<void>;
   updateTypingStatus: (userId: number, isTyping: boolean, roomId?: number) => void;
   clearChatState: () => void;
+  clearError: () => void;
 }
+
+// Helper to clean up old typing statuses
+const cleanupTypingStatuses = (typingUsers: Record<number, TypingStatus>): Record<number, TypingStatus> => {
+  const now = Date.now();
+  const cleaned: Record<number, TypingStatus> = {};
+  
+  Object.entries(typingUsers).forEach(([key, status]) => {
+    if (now - status.timestamp <= 5000) {
+      cleaned[Number(key)] = status;
+    }
+  });
+  
+  return cleaned;
+};
 
 export const useChatStore = create<ChatState>()(
   persist(
@@ -36,69 +52,79 @@ export const useChatStore = create<ChatState>()(
       rooms: [],
       activeRoom: null,
       messages: [],
-      typingUsers: new Map(),
+      typingUsers: {},
       isLoading: false,
+      error: null,
       
       fetchRooms: async () => {
-        set({ isLoading: true });
+        set({ isLoading: true, error: null });
         try {
           const rooms = await chatService.getRooms();
           set({ rooms, isLoading: false });
         } catch (error) {
-          set({ isLoading: false });
+          const errorMessage = error instanceof Error ? error.message : 'Failed to fetch rooms';
+          set({ isLoading: false, error: errorMessage });
           throw error;
         }
       },
       
       fetchRoom: async (roomId: number) => {
-        const room = await chatService.getRoom(roomId);
-        set((state) => ({
-          rooms: state.rooms.map(r => r.id === room.id ? room : r),
-        }));
-        return room;
+        try {
+          const room = await chatService.getRoom(roomId);
+          set((state) => ({
+            rooms: state.rooms.map(r => r.id === room.id ? room : r),
+            error: null,
+          }));
+          return room;
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to fetch room';
+          set({ error: errorMessage });
+          throw error;
+        }
       },
       
       fetchMessages: async (roomId: number) => {
-        set({ isLoading: true });
+        set({ isLoading: true, error: null });
         try {
           const messages = await chatService.getMessages(roomId);
           set({ messages, isLoading: false });
           return messages;
         } catch (error) {
-          set({ isLoading: false });
+          const errorMessage = error instanceof Error ? error.message : 'Failed to fetch messages';
+          set({ isLoading: false, error: errorMessage });
           throw error;
         }
       },
       
       setActiveRoom: (room) => {
         if (room) {
-          // Mark room as read when activated
+          // Mark room as read when activated (fire and forget)
           chatService.markRoomAsRead(room.id).catch(console.error);
         }
-        set({ activeRoom: room, messages: [] });
+        set({ activeRoom: room, messages: [], error: null });
       },
       
       addMessage: (message: Message) => {
         set((state) => {
-          // Check if message already exists
+          // Check if message already exists (prevent duplicates)
           if (state.messages.some(m => m.id === message.id)) {
             return state;
           }
           
-          // Update room's last message
+          // Update room's last message and unread count
           const updatedRooms = state.rooms.map(room => {
-            if (room.id === message.room.id) {
+            if (room.id === message.room?.id) {
               return {
                 ...room,
                 last_message: message,
-                unread_count: room.id === state.activeRoom?.id ? 0 : room.unread_count + 1,
+                unread_count: room.id === state.activeRoom?.id ? 0 : (room.unread_count || 0) + 1,
               };
             }
             return room;
           });
           
-          // Only add message if it belongs to active room
-          const shouldAddMessage = state.activeRoom?.id === message.room.id;
+          // Only add message to UI if it belongs to active room
+          const shouldAddMessage = state.activeRoom?.id === message.room?.id;
           const updatedMessages = shouldAddMessage
             ? [...state.messages, message].sort(
                 (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
@@ -113,53 +139,67 @@ export const useChatStore = create<ChatState>()(
       },
       
       sendMessage: async (roomId: number, content: string, attachments: File[] = []) => {
-        const message = await chatService.sendMessage(roomId, content, attachments);
-        get().addMessage(message);
-        return message;
+        try {
+          const message = await chatService.sendMessage(roomId, content, attachments);
+          get().addMessage(message);
+          return message;
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to send message';
+          set({ error: errorMessage });
+          throw error;
+        }
       },
       
       createDirectRoom: async (userId: number) => {
-        const room = await chatService.createDirectRoom(userId);
-        set((state) => ({
-          rooms: [room, ...state.rooms],
-        }));
-        return room;
+        try {
+          const room = await chatService.createDirectRoom(userId);
+          set((state) => ({
+            // Avoid duplicates - check if room already exists
+            rooms: state.rooms.some(r => r.id === room.id) 
+              ? state.rooms 
+              : [room, ...state.rooms],
+            error: null,
+          }));
+          return room;
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to create room';
+          set({ error: errorMessage });
+          throw error;
+        }
       },
       
       markMessagesAsRead: async (roomId: number) => {
-        await chatService.markMessagesAsRead(roomId);
-        set((state) => ({
-          rooms: state.rooms.map(room =>
-            room.id === roomId ? { ...room, unread_count: 0 } : room
-          ),
-        }));
+        try {
+          await chatService.markMessagesAsRead(roomId);
+          set((state) => ({
+            rooms: state.rooms.map(room =>
+              room.id === roomId ? { ...room, unread_count: 0 } : room
+            ),
+          }));
+        } catch (error) {
+          // Non-critical error, just log it
+          console.error('Failed to mark messages as read:', error);
+        }
       },
       
       updateTypingStatus: (userId: number, isTyping: boolean, roomId?: number) => {
         set((state) => {
-          const newTypingUsers = new Map(state.typingUsers);
+          // Clean up old typing statuses first
+          const cleanedTypingUsers = cleanupTypingStatuses(state.typingUsers);
           
           if (isTyping) {
-            newTypingUsers.set(userId, {
+            cleanedTypingUsers[userId] = {
               userId,
               isTyping,
               roomId: roomId || state.activeRoom?.id || 0,
               roomType: 'direct',
               timestamp: Date.now(),
-            });
+            };
           } else {
-            newTypingUsers.delete(userId);
+            delete cleanedTypingUsers[userId];
           }
           
-          // Clean up old typing statuses (older than 5 seconds)
-          const now = Date.now();
-          newTypingUsers.forEach((status, key) => {
-            if (now - status.timestamp > 5000) {
-              newTypingUsers.delete(key);
-            }
-          });
-          
-          return { typingUsers: newTypingUsers };
+          return { typingUsers: cleanedTypingUsers };
         });
       },
       
@@ -168,14 +208,20 @@ export const useChatStore = create<ChatState>()(
           rooms: [],
           activeRoom: null,
           messages: [],
-          typingUsers: new Map(),
+          typingUsers: {},
+          error: null,
         });
+      },
+      
+      clearError: () => {
+        set({ error: null });
       },
     }),
     {
       name: 'chat-storage',
       partialize: (state) => ({
         rooms: state.rooms,
+        // Don't persist typingUsers, activeRoom, messages, or isLoading
       }),
     }
   )

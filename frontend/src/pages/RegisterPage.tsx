@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { UserPlus, AlertCircle, CheckCircle } from 'lucide-react';
+import { UserPlus, AlertCircle, CheckCircle, User, Mail, Lock, Phone, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -66,17 +66,23 @@ export const RegisterPage: React.FC = () => {
 
   if (success) {
     return (
-      <Card className="w-full">
-        <CardContent className="pt-6">
-          <div className="text-center space-y-4">
-            <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-              <CheckCircle className="h-8 w-8 text-green-600" />
+      <Card className="w-full border-violet-100/50 shadow-xl shadow-violet-500/5 bg-white/80 backdrop-blur-sm">
+        <CardContent className="pt-10 pb-10">
+          <div className="text-center space-y-5">
+            <div className="mx-auto w-20 h-20 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/30">
+              <CheckCircle className="h-10 w-10 text-white" />
             </div>
             <div>
-              <h3 className="text-2xl font-bold">Registration Successful!</h3>
-              <p className="text-muted-foreground mt-2">
+              <h3 className="text-2xl font-bold text-slate-800">Registration Successful!</h3>
+              <p className="text-slate-500 mt-2">
                 Your account has been created. Redirecting to login page...
               </p>
+            </div>
+            <div className="flex justify-center">
+              <div className="h-1 w-32 bg-violet-100 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-500 animate-[progress_2s_ease-in-out]" 
+                  style={{ animation: 'progress 2s ease-in-out', width: '100%' }} />
+              </div>
             </div>
           </div>
         </CardContent>
@@ -85,17 +91,17 @@ export const RegisterPage: React.FC = () => {
   }
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="text-2xl">Create an account</CardTitle>
-        <CardDescription>
+    <Card className="w-full border-violet-100/50 shadow-xl shadow-violet-500/5 bg-white/80 backdrop-blur-sm">
+      <CardHeader className="space-y-1 pb-6">
+        <CardTitle className="text-2xl font-bold text-slate-800">Create an account</CardTitle>
+        <CardDescription className="text-slate-500">
           Enter your information to create a new account
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
           {error && (
-            <Alert variant="destructive">
+            <Alert variant="destructive" className="border-rose-200 bg-rose-50 text-rose-700">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
@@ -103,95 +109,118 @@ export const RegisterPage: React.FC = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="username">Username *</Label>
-              <Input
-                id="username"
-                placeholder="johndoe"
-                value={formData.username}
-                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                required
-                disabled={isLoading}
-              />
+              <Label htmlFor="username" className="text-slate-700 font-medium">Username *</Label>
+              <div className="relative">
+                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-violet-400" />
+                <Input
+                  id="username"
+                  placeholder="johndoe"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  required
+                  disabled={isLoading}
+                  className="pl-10 h-11 bg-violet-50/50 border-violet-200 focus:border-violet-400 focus:ring-violet-400/20"
+                />
+              </div>
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="email">Email *</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="name@example.com"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                required
-                disabled={isLoading}
-              />
+              <Label htmlFor="email" className="text-slate-700 font-medium">Email *</Label>
+              <div className="relative">
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-violet-400" />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="name@example.com"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  required
+                  disabled={isLoading}
+                  className="pl-10 h-11 bg-violet-50/50 border-violet-200 focus:border-violet-400 focus:ring-violet-400/20"
+                />
+              </div>
             </div>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="password">Password *</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                required
-                disabled={isLoading}
-              />
+              <Label htmlFor="password" className="text-slate-700 font-medium">Password *</Label>
+              <div className="relative">
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-violet-400" />
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  required
+                  disabled={isLoading}
+                  className="pl-10 h-11 bg-violet-50/50 border-violet-200 focus:border-violet-400 focus:ring-violet-400/20"
+                />
+              </div>
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password *</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                placeholder="••••••••"
-                value={formData.confirmPassword}
-                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                required
-                disabled={isLoading}
-              />
+              <Label htmlFor="confirmPassword" className="text-slate-700 font-medium">Confirm Password *</Label>
+              <div className="relative">
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-violet-400" />
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  placeholder="••••••••"
+                  value={formData.confirmPassword}
+                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                  required
+                  disabled={isLoading}
+                  className="pl-10 h-11 bg-violet-50/50 border-violet-200 focus:border-violet-400 focus:ring-violet-400/20"
+                />
+              </div>
             </div>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="role">Role *</Label>
-              <Select
-                value={formData.role}
-                onValueChange={(value: any) => setFormData({ ...formData, role: value })}
-                disabled={isLoading}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="clerk">Clerk</SelectItem>
-                  <SelectItem value="atm">Audit Team Member</SelectItem>
-                  <SelectItem value="atl">Audit Team Leader</SelectItem>
-                  <SelectItem value="supervisor">Supervisor</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="role" className="text-slate-700 font-medium">Role *</Label>
+              <div className="relative">
+                <Shield className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-violet-400 z-10 pointer-events-none" />
+                <Select
+                  value={formData.role}
+                  onValueChange={(value: any) => setFormData({ ...formData, role: value })}
+                  disabled={isLoading}
+                >
+                  <SelectTrigger className="pl-10 h-11 bg-violet-50/50 border-violet-200 focus:border-violet-400">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="clerk">Clerk</SelectItem>
+                    <SelectItem value="atm">Audit Team Member</SelectItem>
+                    <SelectItem value="atl">Audit Team Leader</SelectItem>
+                    <SelectItem value="supervisor">Supervisor</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="phone">Phone Number (Optional)</Label>
-              <Input
-                id="phone"
-                type="tel"
-                placeholder="+1 (555) 123-4567"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                disabled={isLoading}
-              />
+              <Label htmlFor="phone" className="text-slate-700 font-medium">Phone Number <span className="text-slate-400">(Optional)</span></Label>
+              <div className="relative">
+                <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-violet-400" />
+                <Input
+                  id="phone"
+                  type="tel"
+                  placeholder="+1 (555) 123-4567"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  disabled={isLoading}
+                  className="pl-10 h-11 bg-violet-50/50 border-violet-200 focus:border-violet-400 focus:ring-violet-400/20"
+                />
+              </div>
             </div>
           </div>
           
           <Button
             type="submit"
-            className="w-full"
+            className="w-full h-11 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 shadow-lg shadow-violet-500/25 transition-all duration-300 text-base font-medium"
             disabled={isLoading}
           >
             {isLoading ? (
@@ -207,23 +236,35 @@ export const RegisterPage: React.FC = () => {
             )}
           </Button>
           
-          <div className="text-center text-sm">
-            Already have an account?{' '}
+          <div className="text-center text-sm pt-2">
+            <span className="text-slate-500">Already have an account?</span>{' '}
             <Link
               to="/login"
-              className="font-medium text-primary hover:underline"
+              className="font-semibold text-violet-600 hover:text-violet-700 transition-colors"
             >
               Sign in
             </Link>
           </div>
           
-          <div className="text-xs text-muted-foreground">
-            <p className="mb-2">Role descriptions:</p>
-            <ul className="space-y-1">
-              <li>• <strong>Clerk:</strong> Can view and update assigned tasks</li>
-              <li>• <strong>Audit Team Member (ATM):</strong> Can view assigned tasks and participate in discussions</li>
-              <li>• <strong>Audit Team Leader (ATL):</strong> Can create tasks and assign to team members</li>
-              <li>• <strong>Supervisor:</strong> Full access to all tasks and user management</li>
+          <div className="mt-6 p-4 bg-violet-50/50 rounded-xl border border-violet-100">
+            <p className="text-sm font-medium text-slate-700 mb-3">Role descriptions:</p>
+            <ul className="space-y-2 text-sm text-slate-600">
+              <li className="flex items-start gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-violet-400 mt-1.5 shrink-0" />
+                <span><strong className="text-slate-700">Clerk:</strong> Can view and update assigned tasks</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-violet-400 mt-1.5 shrink-0" />
+                <span><strong className="text-slate-700">Audit Team Member:</strong> Can view tasks and participate in discussions</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-violet-400 mt-1.5 shrink-0" />
+                <span><strong className="text-slate-700">Audit Team Leader:</strong> Can create tasks and assign to team</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-violet-400 mt-1.5 shrink-0" />
+                <span><strong className="text-slate-700">Supervisor:</strong> Full access to all features</span>
+              </li>
             </ul>
           </div>
         </form>

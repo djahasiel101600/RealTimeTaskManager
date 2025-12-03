@@ -1,7 +1,17 @@
 from rest_framework import serializers
-from .models import Task, TaskAttachment, ActivityLog
+from .models import Task, TaskAttachment, ActivityLog, Comment
 from apps.users.serializers import UserSerializer
 from apps.users.models import User
+
+
+class CommentSerializer(serializers.ModelSerializer):
+    """Serializer for task comments."""
+    user = UserSerializer(read_only=True)
+    
+    class Meta:
+        model = Comment
+        fields = ['id', 'task', 'user', 'content', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'task', 'user', 'created_at', 'updated_at']
 
 
 class TaskAttachmentSerializer(serializers.ModelSerializer):
@@ -23,7 +33,8 @@ class TaskSerializer(serializers.ModelSerializer):
         many=True,
         queryset=User.objects.all(),
         write_only=True,
-        source='assigned_to'
+        source='assigned_to',
+        required=False
     )
     attachments = TaskAttachmentSerializer(many=True, read_only=True)
     due_date = serializers.DateTimeField(required=False, allow_null=True)

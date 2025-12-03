@@ -8,7 +8,9 @@ import {
   CheckCircle,
   AlertCircle,
   Download,
-  RefreshCw
+  RefreshCw,
+  Activity,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,19 +23,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format, subDays } from 'date-fns';
 import { cn } from '@/lib/utils';
-
-interface ActivityLog {
-  id: number;
-  action: string;
-  user: {
-    id: number;
-    username: string;
-    avatar?: string;
-  };
-  details: Record<string, any>;
-  timestamp: string;
-  task_title?: string;
-}
+import { activityLogService, type ActivityLog } from '@/services/api';
 
 const actionIcons: Record<string, React.ReactNode> = {
   created: <FileText className="h-4 w-4" />,
@@ -70,6 +60,7 @@ const actionLabels: Record<string, string> = {
 
 export const ActivityLogsPage: React.FC = () => {
   const [logs, setLogs] = useState<ActivityLog[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [actionFilter, setActionFilter] = useState<string>('all');
@@ -77,107 +68,82 @@ export const ActivityLogsPage: React.FC = () => {
     from: Date;
     to: Date;
   }>({
-    from: subDays(new Date(), 7),
+    from: subDays(new Date(), 30),
     to: new Date(),
   });
-  // const [selectedTask, setSelectedTask] = useState<string>('all');
 
   useEffect(() => {
     loadLogs();
-  }, []);
+  }, [actionFilter, dateRange]);
 
   const loadLogs = async () => {
     setIsLoading(true);
     try {
-      // Mock data - In real app, you would fetch from API
-      const mockLogs: ActivityLog[] = [
-        {
-          id: 1,
-          action: 'created',
-          user: { id: 1, username: 'admin', avatar: '' },
-          details: { task_id: 1 },
-          timestamp: new Date().toISOString(),
-          task_title: 'Annual Financial Audit',
-        },
-        {
-          id: 2,
-          action: 'assigned',
-          user: { id: 1, username: 'admin', avatar: '' },
-          details: { task_id: 1, user_ids: [2, 3] },
-          timestamp: new Date(Date.now() - 3600000).toISOString(),
-          task_title: 'Annual Financial Audit',
-        },
-        {
-          id: 3,
-          action: 'status_changed',
-          user: { id: 2, username: 'john_doe', avatar: '' },
-          details: { task_id: 1, old_status: 'todo', new_status: 'in_progress' },
-          timestamp: new Date(Date.now() - 7200000).toISOString(),
-          task_title: 'Annual Financial Audit',
-        },
-        {
-          id: 4,
-          action: 'file_attached',
-          user: { id: 3, username: 'jane_smith', avatar: '' },
-          details: { task_id: 1, file_name: 'audit_report.pdf' },
-          timestamp: new Date(Date.now() - 10800000).toISOString(),
-          task_title: 'Annual Financial Audit',
-        },
-        {
-          id: 5,
-          action: 'chat_message',
-          user: { id: 2, username: 'john_doe', avatar: '' },
-          details: { task_id: 1, message: 'Started working on the audit' },
-          timestamp: new Date(Date.now() - 14400000).toISOString(),
-          task_title: 'Annual Financial Audit',
-        },
-      ];
-      setLogs(mockLogs);
+      const params: any = {
+        from_date: format(dateRange.from, 'yyyy-MM-dd'),
+        to_date: format(dateRange.to, 'yyyy-MM-dd'),
+      };
+      
+      if (actionFilter !== 'all') {
+        params.action = actionFilter;
+      }
+      
+      const response = await activityLogService.getLogs(params);
+      setLogs(response.results);
+      setTotalCount(response.count);
     } catch (error) {
       console.error('Failed to load activity logs:', error);
+      // Fallback to mock data if API is not available
+      setLogs([]);
+      setTotalCount(0);
     } finally {
       setIsLoading(false);
     }
   };
 
   const filteredLogs = logs.filter(log => {
-    const matchesSearch = 
-      log.user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.task_title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.details?.file_name?.toLowerCase().includes(searchTerm.toLowerCase());
+    if (!searchTerm) return true;
     
-    const matchesAction = actionFilter === 'all' || log.action === actionFilter;
+    const searchLower = searchTerm.toLowerCase();
+    const username = log.user?.username?.toLowerCase() || '';
+    const firstName = log.user?.first_name?.toLowerCase() || '';
+    const lastName = log.user?.last_name?.toLowerCase() || '';
+    const taskTitle = log.task_title?.toLowerCase() || '';
+    const fileName = log.details?.file_name?.toLowerCase() || '';
     
-    const logDate = new Date(log.timestamp);
-    const matchesDate = logDate >= dateRange.from && logDate <= dateRange.to;
-    
-    return matchesSearch && matchesAction && matchesDate;
+    return username.includes(searchLower) ||
+      firstName.includes(searchLower) ||
+      lastName.includes(searchLower) ||
+      taskTitle.includes(searchLower) ||
+      fileName.includes(searchLower);
   });
 
   const getActionDescription = (log: ActivityLog) => {
-    const user = log.user.username;
-    const task = log.task_title;
+    const userName = log.user?.first_name && log.user?.last_name 
+      ? `${log.user.first_name} ${log.user.last_name}`
+      : log.user?.username || 'Unknown user';
+    const task = log.task_title || 'a task';
     
     switch (log.action) {
       case 'created':
-        return `${user} created task "${task}"`;
+        return `${userName} created task "${task}"`;
       case 'updated':
-        return `${user} updated task "${task}"`;
+        return `${userName} updated task "${task}"`;
       case 'deleted':
-        return `${user} deleted task "${task}"`;
+        return `${userName} deleted task "${task}"`;
       case 'status_changed':
         const { old_status, new_status } = log.details;
-        return `${user} changed status of "${task}" from ${old_status} to ${new_status}`;
+        return `${userName} changed status of "${task}" from ${old_status} to ${new_status}`;
       case 'file_attached':
-        return `${user} attached file "${log.details.file_name}" to "${task}"`;
+        return `${userName} attached file "${log.details.file_name}" to "${task}"`;
       case 'file_removed':
-        return `${user} removed file "${log.details.file_name}" from "${task}"`;
+        return `${userName} removed file "${log.details.file_name}" from "${task}"`;
       case 'assigned':
-        return `${user} assigned users to "${task}"`;
+        return `${userName} assigned users to "${task}"`;
       case 'chat_message':
-        return `${user} sent a message in "${task}"`;
+        return `${userName} sent a message in "${task}"`;
       default:
-        return `${user} performed ${log.action} on "${task}"`;
+        return `${userName} performed ${log.action} on "${task}"`;
     }
   };
 
@@ -285,66 +251,79 @@ export const ActivityLogsPage: React.FC = () => {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <div className="flex flex-col items-center justify-center py-16">
+              <Loader2 className="h-10 w-10 animate-spin text-indigo-600 mb-4" />
+              <p className="text-muted-foreground">Loading activity logs...</p>
             </div>
           ) : filteredLogs.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              No activity logs found for the selected filters
+            <div className="flex flex-col items-center justify-center py-16">
+              <div className="p-4 bg-slate-100 rounded-full mb-4">
+                <Activity className="h-10 w-10 text-slate-400" />
+              </div>
+              <h3 className="text-lg font-medium text-slate-900 mb-2">No Activity Found</h3>
+              <p className="text-center text-muted-foreground max-w-sm">
+                No activity logs found for the selected filters. Try adjusting your search or date range.
+              </p>
             </div>
           ) : (
             <ScrollArea className="h-[600px]">
               <div className="space-y-4 pr-4">
-                {filteredLogs.map((log) => (
-                  <div
-                    key={log.id}
-                    className="flex items-start gap-4 p-4 border rounded-lg hover:bg-accent/50 transition-colors"
-                  >
-                    <div className="mt-1">
-                      <div className={cn(
-                        "h-8 w-8 rounded-full flex items-center justify-center",
-                        actionColors[log.action] || 'bg-gray-100'
-                      )}>
-                        {actionIcons[log.action] || <FileText className="h-4 w-4" />}
-                      </div>
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-6 w-6">
-                            <AvatarImage src={log.user.avatar} />
-                            <AvatarFallback>
-                              {log.user.username?.charAt(0).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="font-medium">{log.user.username}</span>
-                          <Badge variant="outline" className={cn(actionColors[log.action])}>
-                            {actionLabels[log.action] || log.action}
-                          </Badge>
+                {filteredLogs.map((log) => {
+                  const displayName = log.user?.first_name && log.user?.last_name
+                    ? `${log.user.first_name} ${log.user.last_name}`
+                    : log.user?.username || 'Unknown';
+                  
+                  return (
+                    <div
+                      key={log.id}
+                      className="flex items-start gap-4 p-4 border rounded-lg hover:bg-accent/50 transition-colors"
+                    >
+                      <div className="mt-1">
+                        <div className={cn(
+                          "h-8 w-8 rounded-full flex items-center justify-center",
+                          actionColors[log.action] || 'bg-gray-100'
+                        )}>
+                          {actionIcons[log.action] || <FileText className="h-4 w-4" />}
                         </div>
-                        <span className="text-sm text-muted-foreground">
-                          {format(new Date(log.timestamp), 'MMM dd, yyyy HH:mm')}
-                        </span>
                       </div>
                       
-                      <p className="text-sm mb-2">{getActionDescription(log)}</p>
-                      
-                      {Object.keys(log.details).length > 0 && (
-                        <div className="mt-2">
-                          <details className="text-sm">
-                            <summary className="cursor-pointer text-muted-foreground">
-                              View Details
-                            </summary>
-                            <pre className="mt-2 p-2 bg-muted rounded-md overflow-x-auto text-xs">
-                              {JSON.stringify(log.details, null, 2)}
-                            </pre>
-                          </details>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <Avatar className="h-6 w-6">
+                              <AvatarImage src={log.user?.avatar} />
+                              <AvatarFallback>
+                                {displayName.charAt(0).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="font-medium">{displayName}</span>
+                            <Badge variant="outline" className={cn(actionColors[log.action])}>
+                              {actionLabels[log.action] || log.action}
+                            </Badge>
+                          </div>
+                          <span className="text-sm text-muted-foreground">
+                            {format(new Date(log.timestamp), 'MMM dd, yyyy HH:mm')}
+                          </span>
                         </div>
-                      )}
+                        
+                        <p className="text-sm mb-2">{getActionDescription(log)}</p>
+                        
+                        {log.details && Object.keys(log.details).length > 0 && (
+                          <div className="mt-2">
+                            <details className="text-sm">
+                              <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                                View Details
+                              </summary>
+                              <pre className="mt-2 p-2 bg-muted rounded-md overflow-x-auto text-xs">
+                                {JSON.stringify(log.details, null, 2)}
+                              </pre>
+                            </details>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </ScrollArea>
           )}
@@ -353,58 +332,50 @@ export const ActivityLogsPage: React.FC = () => {
 
       {/* Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
+        <Card className="bg-gradient-to-br from-slate-50 to-slate-100 border-slate-200">
           <CardContent className="pt-6">
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground">Total Activities</p>
-              <p className="text-3xl font-bold">{logs.length}</p>
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-indigo-100 rounded-xl">
+                <Activity className="h-6 w-6 text-indigo-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Total Activities</p>
+                <p className="text-3xl font-bold text-slate-900">{totalCount}</p>
+              </div>
             </div>
           </CardContent>
         </Card>
         
-        <Card>
+        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
           <CardContent className="pt-6">
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground">Last 7 Days</p>
-              <p className="text-3xl font-bold text-blue-600">
-                {logs.filter(log => 
-                  new Date(log.timestamp) >= subDays(new Date(), 7)
-                ).length}
-              </p>
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-blue-100 rounded-xl">
+                <Calendar className="h-6 w-6 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Showing</p>
+                <p className="text-3xl font-bold text-blue-600">{filteredLogs.length}</p>
+              </div>
             </div>
           </CardContent>
         </Card>
         
-        <Card>
+        <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200">
           <CardContent className="pt-6">
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground">Most Active User</p>
-              {logs.length > 0 ? (
-                <>
-                  <p className="text-2xl font-bold">
-                    {(() => {
-                      const userCounts: Record<string, number> = {};
-                      logs.forEach(log => {
-                        userCounts[log.user.username] = (userCounts[log.user.username] || 0) + 1;
-                      });
-                      const mostActive = Object.entries(userCounts).sort((a, b) => b[1] - a[1])[0];
-                      return mostActive ? mostActive[0] : 'N/A';
-                    })()}
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-emerald-100 rounded-xl">
+                <User className="h-6 w-6 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Active Users</p>
+                {logs.length > 0 ? (
+                  <p className="text-3xl font-bold text-emerald-600">
+                    {new Set(logs.map(l => l.user?.id)).size}
                   </p>
-                  <p className="text-sm text-muted-foreground">
-                    with {(() => {
-                      const userCounts: Record<string, number> = {};
-                      logs.forEach(log => {
-                        userCounts[log.user.username] = (userCounts[log.user.username] || 0) + 1;
-                      });
-                      const mostActive = Object.entries(userCounts).sort((a, b) => b[1] - a[1])[0];
-                      return mostActive ? mostActive[1] : 0;
-                    })()} activities
-                  </p>
-                </>
-              ) : (
-                <p className="text-2xl font-bold">N/A</p>
-              )}
+                ) : (
+                  <p className="text-3xl font-bold text-emerald-600">0</p>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>

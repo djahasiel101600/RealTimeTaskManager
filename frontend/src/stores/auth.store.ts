@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User } from '@/types';
-import { authService } from '@/services/api';
 
 interface AuthState {
   user: User | null;
@@ -13,6 +12,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   setUser: (user: User) => void;
+  setToken: (token: string, user: User) => void;
   clearError: () => void;
 }
 
@@ -28,6 +28,8 @@ export const useAuthStore = create<AuthState>()(
       login: async (email, password) => {
         set({ isLoading: true, error: null });
         try {
+          // Dynamically import to avoid circular dependency
+          const { authService } = await import('@/services/api');
           const response = await authService.login(email, password);
           set({
             user: response.user,
@@ -38,8 +40,11 @@ export const useAuthStore = create<AuthState>()(
         } catch (error: any) {
           set({ 
             error: error.response?.data?.detail || 'Login failed',
-            isLoading: false 
+            isLoading: false,
+            isAuthenticated: false,
           });
+          // Re-throw so the component can handle navigation logic
+          throw error;
         }
       },
       
@@ -53,6 +58,13 @@ export const useAuthStore = create<AuthState>()(
       },
       
       setUser: (user) => set({ user }),
+      
+      setToken: (token, user) => set({ 
+        token, 
+        user, 
+        isAuthenticated: true 
+      }),
+      
       clearError: () => set({ error: null }),
     }),
     {

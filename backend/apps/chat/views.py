@@ -2,17 +2,17 @@ from rest_framework import viewsets, status, permissions, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Q, Count, Max
-from django.utils import timezone
+from django.contrib.auth import get_user_model
 from .models import ChatRoom, Message, MessageAttachment
 from .serializers import (
     ChatRoomSerializer, MessageSerializer, 
     MessageCreateSerializer, ChatRoomCreateSerializer
 )
 from apps.tasks.models import Task
-from apps.tasks.permissions import IsTaskAssignee
 import logging
 
 logger = logging.getLogger(__name__)
+User = get_user_model()
 
 
 class ChatRoomViewSet(viewsets.ModelViewSet):
@@ -21,35 +21,6 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [filters.OrderingFilter]
     ordering = ['-updated_at']
-
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        room_type = serializer.validated_data.get('room_type')
-        
-        if room_type == 'direct':
-            # ... existing code ...
-            pass
-        
-        elif room_type == 'task':
-            task_id = serializer.validated_data.get('task_id')
-            
-            try:
-                task = Task.objects.get(id=task_id)
-            except Task.DoesNotExist:
-                return Response(
-                    {'error': 'Task not found'},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-            
-            # FIXED: Use task's built-in permission method
-            if not request.user.can_view_task(task):
-                return Response(
-                    {'error': 'You do not have permission to chat about this task'},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-
     
     def get_serializer_class(self):
         if self.action == 'create':
@@ -62,15 +33,12 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
         # Get rooms where user is a participant
         rooms = ChatRoom.objects.filter(participants=user)
         
-        # Annotate with last message and unread count
+        # Annotate with last message time and unread count
         rooms = rooms.annotate(
             last_message_time=Max('messages__timestamp'),
             unread_count=Count(
                 'messages',
-                filter=Q(
-                    messages__is_read=False,
-                    messages__sender__id__ne=user.id
-                )
+                filter=Q(messages__is_read=False) & ~Q(messages__sender=user)
             )
         )
         
@@ -131,6 +99,9 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
             ).first()
             
             if existing_room:
+                # Add user to existing room if not already participant
+                if not existing_room.participants.filter(id=request.user.id).exists():
+                    existing_room.participants.add(request.user)
                 serializer = ChatRoomSerializer(existing_room)
                 return Response(serializer.data, status=status.HTTP_200_OK)
             
@@ -211,6 +182,25 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
         ).exclude(sender=request.user).update(is_read=True)
         
         serializer = self.get_serializer(room)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['get'])
+    def messages(self, request, pk=None):
+        """Get all messages for a chat room"""
+        room = self.get_object()
+        
+        # Check if user is participant
+        if not room.participants.filter(id=request.user.id).exists():
+            return Response(
+                {'error': 'You are not a participant in this chat'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        messages = Message.objects.filter(room=room).select_related(
+            'sender'
+        ).prefetch_related('attachments').order_by('timestamp')
+        
+        serializer = MessageSerializer(messages, many=True)
         return Response(serializer.data)
 
 

@@ -1,0 +1,51 @@
+# ===========================================
+# Docker Compose Override for LOCAL DEVELOPMENT
+# ===========================================
+# This file is automatically loaded alongside docker-compose.yml
+# It enables development features like bind mounts and port exposure
+#
+# For production, rename this file or use:
+#   docker-compose -f docker-compose.yml up
+#
+# For development:
+#   docker-compose up (automatically includes this file)
+
+services:
+  # Expose database port for local tools
+  postgres:
+    ports:
+      - "5432:5432"
+
+  # Expose redis port for local tools
+  redis:
+    ports:
+      - "6379:6379"
+
+  # Enable backend development mode
+  backend:
+    volumes:
+      - ./backend:/app  # Bind mount for hot reload
+      - media_volume:/app/media
+      - static_volume:/app/staticfiles
+      - ./backend/logs:/app/logs
+    ports:
+      - "8001:8000"  # Direct backend access
+    environment:
+      - DEBUG=1
+
+  # Enable frontend development mode
+  frontend:
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:80"  # Direct frontend access
+
+  # Bind mount nginx logs for debugging
+  nginx:
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+      - static_volume:/static
+      - media_volume:/media
+      - ./nginx/logs:/var/log/nginx

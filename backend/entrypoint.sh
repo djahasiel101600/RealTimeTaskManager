@@ -43,9 +43,11 @@ sleep 2
 echo "Applying database migrations..."
 python manage.py migrate --noinput
 
-# Create superuser if it doesn't exist (optional)
-echo "Creating superuser if needed..."
-python manage.py createsuperuser --noinput --username admin --email admin@example.com || true
+# Create superuser only if DJANGO_SUPERUSER_* env vars are set
+if [ -n "$DJANGO_SUPERUSER_USERNAME" ] && [ -n "$DJANGO_SUPERUSER_EMAIL" ] && [ -n "$DJANGO_SUPERUSER_PASSWORD" ]; then
+    echo "Creating superuser from environment variables..."
+    python manage.py createsuperuser --noinput || true
+fi
 
 # Collect static files
 echo "Collecting static files..."

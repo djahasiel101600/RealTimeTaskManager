@@ -25,7 +25,7 @@ import {
 import { Calendar } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { X, CalendarIcon, UserPlus } from 'lucide-react';
+import { X, CalendarIcon, UserPlus, Sparkles, AlertCircle, Flag, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/stores/task.store';
@@ -36,6 +36,13 @@ interface CreateTaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
+
+const priorityConfig = {
+  low: { label: 'Low', color: 'text-slate-500', bg: 'from-slate-400 to-slate-500' },
+  normal: { label: 'Normal', color: 'text-blue-500', bg: 'from-blue-500 to-indigo-500' },
+  high: { label: 'High', color: 'text-amber-500', bg: 'from-amber-500 to-orange-500' },
+  urgent: { label: 'Urgent', color: 'text-rose-500', bg: 'from-rose-500 to-red-500' },
+};
 
 export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   open,
@@ -90,8 +97,10 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
 
     try {
       await createTask({
-        ...formData,
-        assigned_to: selectedUsers.map(u => u.id),
+        title: formData.title,
+        description: formData.description,
+        priority: formData.priority,
+        assigned_to_ids: selectedUsers.map(u => u.id),
         due_date: formData.dueDate ? format(formData.dueDate, 'yyyy-MM-dd') : undefined,
       });
       onOpenChange(false);
@@ -130,16 +139,24 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl border-0 shadow-2xl shadow-slate-300/50 overflow-hidden bg-white">
+        {/* Gradient header accent */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-violet-500 via-fuchsia-500 to-violet-500" />
+        
         <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>Create New Task</DialogTitle>
+          <DialogHeader className="pb-4">
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <div className="w-10 h-10 rounded-xl bg-linear-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/30">
+                <Sparkles className="h-5 w-5 text-white" />
+              </div>
+              Create New Task
+            </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-6 py-4">
             {/* Title */}
             <div className="space-y-2">
-              <Label htmlFor="title">Title *</Label>
+              <Label htmlFor="title" className="text-slate-700 font-medium">Title *</Label>
               <Input
                 id="title"
                 value={formData.title}
@@ -148,12 +165,13 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                 }
                 placeholder="Enter task title"
                 required
+                className="border-slate-200 focus:border-violet-300 focus:ring-violet-200 text-base"
               />
             </div>
 
             {/* Description */}
             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description" className="text-slate-700 font-medium">Description</Label>
               <Textarea
                 id="description"
                 value={formData.description}
@@ -162,41 +180,52 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                 }
                 placeholder="Enter task description"
                 rows={4}
+                className="border-slate-200 focus:border-violet-300 focus:ring-violet-200 resize-none"
               />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Priority */}
               <div className="space-y-2">
-                <Label htmlFor="priority">Priority</Label>
+                <Label htmlFor="priority" className="text-slate-700 font-medium flex items-center gap-2">
+                  <Flag className="h-4 w-4 text-slate-400" />
+                  Priority
+                </Label>
                 <Select
                   value={formData.priority}
                   onValueChange={(value: any) =>
                     setFormData({ ...formData, priority: value })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="border-slate-200 focus:border-violet-300 focus:ring-violet-200">
                     <SelectValue placeholder="Select priority" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="normal">Normal</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="urgent">Urgent</SelectItem>
+                    {Object.entries(priorityConfig).map(([value, config]) => (
+                      <SelectItem key={value} value={value}>
+                        <div className="flex items-center gap-2">
+                          <div className={cn("w-2 h-2 rounded-full bg-linear-to-r", config.bg)} />
+                          <span className={config.color}>{config.label}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
               {/* Due Date */}
               <div className="space-y-2">
-                <Label>Due Date (Optional)</Label>
+                <Label className="text-slate-700 font-medium flex items-center gap-2">
+                  <CalendarIcon className="h-4 w-4 text-slate-400" />
+                  Due Date (Optional)
+                </Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
                       className={cn(
-                        'w-full justify-start text-left font-normal',
-                        !formData.dueDate && 'text-muted-foreground'
+                        'w-full justify-start text-left font-normal border-slate-200 hover:bg-violet-50 hover:border-violet-300',
+                        !formData.dueDate && 'text-slate-400'
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
@@ -207,7 +236,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                       )}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
+                  <PopoverContent className="w-auto p-0 border-0 shadow-xl">
                     <Calendar
                       mode="single"
                       selected={formData.dueDate}
@@ -215,6 +244,7 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                         setFormData({ ...formData, dueDate: date })
                       }
                       initialFocus
+                      className="rounded-xl"
                     />
                   </PopoverContent>
                 </Popover>
@@ -224,26 +254,29 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
             {/* Assign Users */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label>Assign To</Label>
+                <Label className="text-slate-700 font-medium flex items-center gap-2">
+                  <UserPlus className="h-4 w-4 text-slate-400" />
+                  Assign To
+                </Label>
                 <Popover open={isUsersOpen} onOpenChange={setIsUsersOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="gap-2"
+                      className="gap-2 border-violet-200 hover:bg-violet-50 hover:border-violet-300 hover:text-violet-700"
                     >
                       <UserPlus className="h-4 w-4" />
                       Add People
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-80 p-0" align="end">
-                    <div className="p-2 border-b">
+                  <PopoverContent className="w-80 p-0 border-0 shadow-xl overflow-hidden" align="end">
+                    <div className="p-3 border-b border-slate-100 bg-linear-to-r from-slate-50 to-white">
                       <Input
                         placeholder="Search users..."
                         value={userSearch}
                         onChange={(e) => setUserSearch(e.target.value)}
-                        className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                        className="border-slate-200 focus:border-violet-300 focus:ring-violet-200"
                       />
                     </div>
                     <div className="max-h-60 overflow-y-auto">
@@ -251,30 +284,31 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                         <Button
                           key={user.id}
                           variant="ghost"
-                          className="w-full justify-start p-3"
+                          className="w-full justify-start p-3 rounded-none hover:bg-linear-to-r hover:from-violet-50 hover:to-fuchsia-50"
                           onClick={() => handleUserSelect(user)}
                           disabled={selectedUsers.some(u => u.id === user.id)}
                         >
-                          <Avatar className="h-6 w-6 mr-2">
+                          <Avatar className="h-8 w-8 mr-3 ring-2 ring-violet-100">
                             <AvatarImage src={user.avatar} />
-                            <AvatarFallback>
+                            <AvatarFallback className="bg-linear-to-br from-violet-500 to-fuchsia-500 text-white text-sm font-medium">
                               {user.username?.charAt(0).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
                           <div className="flex-1 text-left">
-                            <div className="font-medium">{user.username}</div>
-                            <div className="text-xs text-muted-foreground">
+                            <div className="font-medium text-slate-700">{user.username}</div>
+                            <div className="text-xs text-slate-400">
                               {user.email}
                             </div>
                           </div>
                           {selectedUsers.some(u => u.id === user.id) && (
-                            <div className="h-2 w-2 rounded-full bg-green-500" />
+                            <div className="h-2 w-2 rounded-full bg-linear-to-r from-emerald-400 to-emerald-500" />
                           )}
                         </Button>
                       ))}
                       {filteredUsers.length === 0 && (
-                        <div className="p-4 text-center text-muted-foreground">
-                          No users found
+                        <div className="p-6 text-center">
+                          <AlertCircle className="h-8 w-8 mx-auto mb-2 text-slate-300" />
+                          <p className="text-slate-500">No users found</p>
                         </div>
                       )}
                     </div>
@@ -284,25 +318,24 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
 
               {/* Selected Users */}
               {selectedUsers.length > 0 && (
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 p-3 rounded-xl bg-linear-to-r from-violet-50/50 to-fuchsia-50/50 border border-violet-100">
                   {selectedUsers.map((user) => (
                     <Badge
                       key={user.id}
-                      variant="secondary"
-                      className="pl-2 pr-1 py-1 flex items-center gap-1"
+                      className="pl-2 pr-1 py-1.5 flex items-center gap-1.5 bg-white border border-violet-200 text-slate-700 shadow-sm"
                     >
-                      <Avatar className="h-4 w-4">
+                      <Avatar className="h-5 w-5 ring-1 ring-violet-100">
                         <AvatarImage src={user.avatar} />
-                        <AvatarFallback>
+                        <AvatarFallback className="bg-linear-to-br from-violet-500 to-fuchsia-500 text-white text-xs">
                           {user.username?.charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
-                      <span className="text-xs">{user.username}</span>
+                      <span className="text-xs font-medium">{user.username}</span>
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-3 w-3 ml-1"
+                        className="h-4 w-4 ml-0.5 hover:bg-rose-100 hover:text-rose-600 rounded-full"
                         onClick={() => removeSelectedUser(user.id)}
                       >
                         <X className="h-3 w-3" />
@@ -314,16 +347,28 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="gap-2 pt-4 border-t border-slate-100">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
+              className="border-slate-200 hover:bg-slate-50"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Creating...' : 'Create Task'}
+            <Button 
+              type="submit" 
+              disabled={isSubmitting}
+              className="bg-linear-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white shadow-lg shadow-violet-500/25"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                'Create Task'
+              )}
             </Button>
           </DialogFooter>
         </form>

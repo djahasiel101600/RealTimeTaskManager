@@ -1,348 +1,663 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useEffect, useState, useRef } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { format } from 'date-fns';
 import { 
   ArrowLeft, 
   Calendar, 
+  Clock, 
+  User, 
   Users, 
-  Paperclip, 
-  MessageSquare,
-  Edit,
-  Trash2,
-  Clock,
-  AlertCircle,
-  CheckCircle,
+  FileText, 
   Upload,
-  Download
+  Download,
+  Trash2,
+  MessageSquare,
+  Send,
+  Edit2,
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
-// Separator import removed (not used)
-import { useTaskStore } from '@/stores/task.store';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+// Task store not currently used, but may be needed later
+// import { useTaskStore } from '@/stores/task.store';
 import { useAuthStore } from '@/stores/auth.store';
-import { format } from 'date-fns';
+import { taskService, attachmentService, commentService, type Comment } from '@/services/api';
+import type { Task, TaskAttachment } from '@/types';
 import { cn } from '@/lib/utils';
 
-const statusConfig = {
-  todo: { label: 'To Do', color: 'bg-gray-100 text-gray-800' },
-  in_progress: { label: 'In Progress', color: 'bg-blue-100 text-blue-800' },
-  review: { label: 'Review', color: 'bg-purple-100 text-purple-800' },
-  done: { label: 'Done', color: 'bg-green-100 text-green-800' },
-  cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-800' },
+const statusConfig: Record<string, { label: string; color: string; bgColor: string }> = {
+  todo: { label: 'To Do', color: 'text-slate-700', bgColor: 'bg-slate-100' },
+  in_progress: { label: 'In Progress', color: 'text-blue-700', bgColor: 'bg-blue-100' },
+  review: { label: 'In Review', color: 'text-amber-700', bgColor: 'bg-amber-100' },
+  done: { label: 'Done', color: 'text-emerald-700', bgColor: 'bg-emerald-100' },
+  cancelled: { label: 'Cancelled', color: 'text-red-700', bgColor: 'bg-red-100' },
 };
 
-const priorityConfig = {
-  low: { label: 'Low', color: 'bg-blue-100 text-blue-800' },
-  normal: { label: 'Normal', color: 'bg-green-100 text-green-800' },
-  high: { label: 'High', color: 'bg-yellow-100 text-yellow-800' },
-  urgent: { label: 'Urgent', color: 'bg-red-100 text-red-800' },
+const priorityConfig: Record<string, { label: string; color: string; bgColor: string }> = {
+  low: { label: 'Low', color: 'text-slate-600', bgColor: 'bg-slate-100' },
+  normal: { label: 'Normal', color: 'text-blue-600', bgColor: 'bg-blue-100' },
+  high: { label: 'High', color: 'text-orange-600', bgColor: 'bg-orange-100' },
+  urgent: { label: 'Urgent', color: 'text-red-600', bgColor: 'bg-red-100' },
 };
 
-export const TaskDetailPage: React.FC = () => {
+export function TaskDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { selectedTask, fetchTask, updateTask, deleteTask, isLoading } = useTaskStore();
   const { user } = useAuthStore();
-  const [comment, setComment] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
-  const [editData, setEditData] = useState({
-    title: '',
-    description: '',
-    priority: 'normal' as any,
-  });
+  
+  const [task, setTask] = useState<Task | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Status change
+  const [isChangingStatus, setIsChangingStatus] = useState(false);
+  
+  // File upload
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Comments
+  const [newComment, setNewComment] = useState('');
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
 
+  // Fetch task details
   useEffect(() => {
-    if (id) {
-      fetchTask(parseInt(id));
-    }
+    const fetchTask = async () => {
+      if (!id) return;
+      
+      setLoading(true);
+      setError(null);
+      
+      try {
+        const taskData = await taskService.getById(parseInt(id));
+        setTask(taskData);
+        
+        // Fetch attachments
+        try {
+          const attachmentsData = await attachmentService.getByTask(parseInt(id));
+          setAttachments(attachmentsData);
+        } catch (err) {
+          console.error('Failed to fetch attachments:', err);
+        }
+        
+        // Fetch comments
+        try {
+          const commentsData = await commentService.getByTask(parseInt(id));
+          setComments(Array.isArray(commentsData) ? commentsData : []);
+        } catch (err) {
+          console.error('Failed to fetch comments:', err);
+        }
+      } catch (err) {
+        console.error('Failed to fetch task:', err);
+        setError('Failed to load task details');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTask();
   }, [id]);
 
-  useEffect(() => {
-    if (selectedTask) {
-      setEditData({
-        title: selectedTask.title,
-        description: selectedTask.description,
-        priority: selectedTask.priority,
-      });
+  // Handle status change
+  const handleStatusChange = async (newStatus: string) => {
+    if (!task || !id) return;
+    
+    setIsChangingStatus(true);
+    try {
+      const updatedTask = await taskService.update(parseInt(id), { status: newStatus });
+      setTask(updatedTask);
+    } catch (err) {
+      console.error('Failed to update status:', err);
+      alert('Failed to update task status');
+    } finally {
+      setIsChangingStatus(false);
     }
-  }, [selectedTask]);
+  };
 
-  if (isLoading || !selectedTask) {
+  // Handle file upload
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !id) return;
+
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setUploadProgress(Math.round(((i + 0.5) / files.length) * 100));
+        
+        const attachment = await attachmentService.upload(parseInt(id), file);
+        setAttachments(prev => [...prev, attachment]);
+        
+        setUploadProgress(Math.round(((i + 1) / files.length) * 100));
+      }
+    } catch (err) {
+      console.error('Failed to upload file:', err);
+      alert('Failed to upload file');
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Handle file delete
+  const handleDeleteAttachment = async (attachmentId: number) => {
+    if (!confirm('Are you sure you want to delete this attachment?')) return;
+    
+    try {
+      await attachmentService.delete(attachmentId);
+      setAttachments(prev => prev.filter(a => a.id !== attachmentId));
+    } catch (err) {
+      console.error('Failed to delete attachment:', err);
+      alert('Failed to delete attachment');
+    }
+  };
+
+  // Handle comment submit
+  const handleCommentSubmit = async () => {
+    if (!newComment.trim() || !id) return;
+    
+    setIsSubmittingComment(true);
+    try {
+      const comment = await commentService.create(parseInt(id), newComment.trim());
+      setComments(prev => [...prev, comment]);
+      setNewComment('');
+    } catch (err) {
+      console.error('Failed to add comment:', err);
+      alert('Failed to add comment');
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  };
+
+  // Get user initials
+  const getInitials = (firstName?: string, lastName?: string) => {
+    return `${firstName?.[0] || ''}${lastName?.[0] || ''}`.toUpperCase() || '?';
+  };
+
+  // Loading state
+  if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-violet-50/30 to-fuchsia-50/20 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 flex items-center justify-center animate-pulse">
+            <Loader2 className="h-8 w-8 animate-spin text-white" />
+          </div>
+          <p className="text-slate-600 font-medium">Loading task details...</p>
+        </div>
       </div>
     );
   }
 
-  const handleUpdateTask = async () => {
-    try {
-      await updateTask(selectedTask.id, editData);
-      setIsEditing(false);
-    } catch (error) {
-      console.error('Failed to update task:', error);
-    }
-  };
+  // Error state
+  if (error || !task) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-violet-50/30 to-fuchsia-50/20 flex items-center justify-center">
+        <Card className="max-w-md w-full mx-4 border-0 shadow-xl shadow-slate-200/50">
+          <CardContent className="pt-6 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-rose-500 to-red-500 flex items-center justify-center">
+              <AlertCircle className="h-8 w-8 text-white" />
+            </div>
+            <h2 className="text-xl font-semibold text-slate-900 mb-2">Task Not Found</h2>
+            <p className="text-slate-600 mb-6">{error || "The task you're looking for doesn't exist."}</p>
+            <Button 
+              onClick={() => navigate('/tasks')}
+              className="bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 shadow-lg shadow-violet-500/25"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Tasks
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
-  const handleDeleteTask = async () => {
-    if (window.confirm('Are you sure you want to delete this task?')) {
-      await deleteTask(selectedTask.id);
-      navigate('/tasks');
-    }
-  };
-
-  const canEditTask = user?.role === 'supervisor' || 
-    user?.role === 'atl' || 
-    selectedTask.assigned_to.some(u => u.id === user?.id);
-
-  const isOverdue = selectedTask.due_date && new Date(selectedTask.due_date) < new Date();
+  const priority = priorityConfig[task.priority] || priorityConfig.normal;
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-violet-50/30 to-fuchsia-50/20">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate('/tasks')}
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold">Task Details</h1>
-            <p className="text-muted-foreground">
-              Created {format(new Date(selectedTask.created_at), 'PPP')}
-            </p>
+      <div className="bg-white/80 backdrop-blur-xl border-b border-slate-200/50 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => navigate('/tasks')}
+                className="hover:bg-violet-50 hover:text-violet-700"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back
+              </Button>
+              <div className="h-6 w-px bg-gradient-to-b from-violet-200 to-fuchsia-200" />
+              <h1 className="text-xl font-semibold text-slate-900 truncate max-w-md">
+                {task.title}
+              </h1>
+            </div>
+            <div className="flex items-center gap-3">
+              <Badge className={cn(
+                "px-3 py-1 font-medium border-0",
+                task.priority === 'urgent' && "bg-gradient-to-r from-rose-500 to-red-500 text-white",
+                task.priority === 'high' && "bg-gradient-to-r from-orange-500 to-amber-500 text-white",
+                task.priority === 'normal' && "bg-gradient-to-r from-blue-500 to-indigo-500 text-white",
+                task.priority === 'low' && "bg-gradient-to-r from-slate-400 to-slate-500 text-white"
+              )}>
+                {priority.label} Priority
+              </Badge>
+              <Link to={`/tasks/${id}/edit`}>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="border-violet-200 hover:bg-violet-50 hover:border-violet-300 hover:text-violet-700"
+                >
+                  <Edit2 className="h-4 w-4 mr-2" />
+                  Edit
+                </Button>
+              </Link>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {canEditTask && (
-            <>
-              <Button
-                variant="outline"
-                onClick={() => setIsEditing(!isEditing)}
-              >
-                <Edit className="mr-2 h-4 w-4" />
-                {isEditing ? 'Cancel' : 'Edit'}
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={handleDeleteTask}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete
-              </Button>
-            </>
-          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main content */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Task Info */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                {isEditing ? (
-                  <input
-                    type="text"
-                    value={editData.title}
-                    onChange={(e) => setEditData({ ...editData, title: e.target.value })}
-                    className="text-2xl font-bold border-b pb-1 w-full"
-                  />
-                ) : (
-                  <CardTitle>{selectedTask.title}</CardTitle>
-                )}
-                <div className="flex items-center gap-2">
-                  <Badge className={statusConfig[selectedTask.status].color}>
-                    {statusConfig[selectedTask.status].label}
-                  </Badge>
-                  <Badge className={priorityConfig[selectedTask.priority].color}>
-                    {priorityConfig[selectedTask.priority].label}
-                  </Badge>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {isEditing ? (
-                <Textarea
-                  value={editData.description}
-                  onChange={(e) => setEditData({ ...editData, description: e.target.value })}
-                  rows={6}
-                />
-              ) : (
-                <p className="text-muted-foreground whitespace-pre-wrap">
-                  {selectedTask.description || 'No description provided.'}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Main Content */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Description */}
+            <Card className="border-0 shadow-lg shadow-slate-200/50 overflow-hidden">
+              <div className="h-1 bg-gradient-to-r from-violet-500 to-fuchsia-500" />
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-100 to-fuchsia-100 flex items-center justify-center">
+                    <FileText className="h-4 w-4 text-violet-600" />
+                  </div>
+                  Description
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-slate-700 whitespace-pre-wrap leading-relaxed">
+                  {task.description || 'No description provided.'}
                 </p>
-              )}
+              </CardContent>
+            </Card>
 
-              {/* Metadata */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex items-center gap-3">
-                  <Calendar className="h-5 w-5 text-muted-foreground" />
+            {/* Attachments */}
+            <Card className="border-0 shadow-lg shadow-slate-200/50 overflow-hidden">
+              <div className="h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center">
+                      <Upload className="h-4 w-4 text-emerald-600" />
+                    </div>
+                    Attachments
+                    {attachments.length > 0 && (
+                      <Badge className="ml-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white border-0">
+                        {attachments.length}
+                      </Badge>
+                    )}
+                  </CardTitle>
                   <div>
-                    <p className="text-sm font-medium">Due Date</p>
-                    <p className={cn(
-                      "text-sm",
-                      isOverdue ? "text-red-600 font-medium" : "text-muted-foreground"
-                    )}>
-                      {selectedTask.due_date ? (
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={handleFileUpload}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploading}
+                      className="border-emerald-200 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700"
+                    >
+                      {isUploading ? (
                         <>
-                          {format(new Date(selectedTask.due_date), 'PPP')}
-                          {isOverdue && ' (Overdue)'}
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          {uploadProgress}%
                         </>
                       ) : (
-                        'No due date'
+                        <>
+                          <Upload className="h-4 w-4 mr-2" />
+                          Upload
+                        </>
                       )}
-                    </p>
+                    </Button>
                   </div>
                 </div>
-
-                <div className="flex items-center gap-3">
-                  <Users className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm font-medium">Assigned To</p>
-                    <div className="flex -space-x-2 mt-1">
-                      {selectedTask.assigned_to.slice(0, 3).map((user) => (
-                        <Avatar key={user.id} className="h-6 w-6 border-2 border-background">
-                          <AvatarImage src={user.avatar} />
-                          <AvatarFallback>
-                            {user.username?.charAt(0).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                      ))}
-                      {selectedTask.assigned_to.length > 3 && (
-                        <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-xs border-2 border-background">
-                          +{selectedTask.assigned_to.length - 3}
-                        </div>
-                      )}
+              </CardHeader>
+              <CardContent>
+                {attachments.length === 0 ? (
+                  <div className="text-center py-8 text-slate-500">
+                    <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-50 flex items-center justify-center">
+                      <Upload className="h-7 w-7 text-slate-300" />
                     </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <Clock className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm font-medium">Created By</p>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedTask.created_by.username}
+                    <p className="font-medium">No attachments yet</p>
+                    <p className="text-sm text-slate-400 mt-1">
+                      Upload files to share with your team
                     </p>
                   </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  {selectedTask.completed_at ? (
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                  ) : (
-                    <AlertCircle className="h-5 w-5 text-muted-foreground" />
-                  )}
-                  <div>
-                    <p className="text-sm font-medium">Status</p>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedTask.completed_at
-                        ? `Completed ${format(new Date(selectedTask.completed_at), 'PPP')}`
-                        : 'In progress'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {isEditing && (
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setIsEditing(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleUpdateTask}>
-                    Save Changes
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Attachments */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Paperclip className="h-5 w-5" />
-                Attachments ({selectedTask.attachments.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {selectedTask.attachments.length === 0 ? (
-                <p className="text-muted-foreground">No attachments yet.</p>
-              ) : (
-                <div className="space-y-2">
-                  {selectedTask.attachments.map((attachment) => (
-                    <div
-                      key={attachment.id}
-                      className="flex items-center justify-between p-3 border rounded-lg"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Paperclip className="h-4 w-4" />
-                        <div>
-                          <p className="font-medium">{attachment.file_name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {Math.round(attachment.file_size / 1024)} KB • 
-                            Uploaded by {attachment.uploaded_by.username}
-                          </p>
+                ) : (
+                  <div className="space-y-2">
+                    {attachments.map((attachment) => (
+                      <div
+                        key={attachment.id}
+                        className="flex items-center justify-between p-3 bg-gradient-to-r from-slate-50 to-white rounded-xl hover:from-emerald-50/50 hover:to-white transition-all duration-200 border border-slate-100"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-100 to-fuchsia-100 flex items-center justify-center">
+                            <FileText className="h-5 w-5 text-violet-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-slate-700">
+                              {attachment.file_name || attachment.file?.split('/').pop() || 'File'}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              Uploaded {format(new Date(attachment.uploaded_at), 'MMM d, yyyy')}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => window.open(attachment.file, '_blank')}
+                            className="hover:bg-violet-50 hover:text-violet-700"
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteAttachment(attachment.id)}
+                            className="text-rose-500 hover:text-rose-700 hover:bg-rose-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
-                      <Button variant="ghost" size="icon">
-                        <Download className="h-4 w-4" />
-                      </Button>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Comments */}
+            <Card className="border-0 shadow-lg shadow-slate-200/50 overflow-hidden">
+              <div className="h-1 bg-gradient-to-r from-blue-500 to-indigo-500" />
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center">
+                    <MessageSquare className="h-4 w-4 text-blue-600" />
+                  </div>
+                  Comments
+                  {comments.length > 0 && (
+                    <Badge className="ml-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white border-0">
+                      {comments.length}
+                    </Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Comment List */}
+                {comments.length === 0 ? (
+                  <div className="text-center py-6 text-slate-500">
+                    <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-50 flex items-center justify-center">
+                      <MessageSquare className="h-7 w-7 text-slate-300" />
                     </div>
-                  ))}
+                    <p className="font-medium">No comments yet</p>
+                    <p className="text-sm text-slate-400 mt-1">
+                      Be the first to comment on this task
+                    </p>
+                  </div>
+                ) : (
+                  <ScrollArea className="max-h-80">
+                    <div className="space-y-4 pr-4">
+                      {comments.map((comment) => (
+                        <div key={comment.id} className="flex gap-3">
+                          <Avatar className="h-8 w-8 shrink-0 ring-2 ring-violet-100">
+                            <AvatarFallback className="text-xs bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white font-medium">
+                              {getInitials(comment.user.first_name, comment.user.last_name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 bg-gradient-to-r from-slate-50 to-white p-3 rounded-xl border border-slate-100">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm text-slate-900">
+                                {comment.user.first_name} {comment.user.last_name}
+                              </span>
+                              <span className="text-xs text-slate-500">
+                                {format(new Date(comment.created_at), 'MMM d, h:mm a')}
+                              </span>
+                            </div>
+                            <p className="text-sm text-slate-700 mt-1">{comment.content}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
+
+                {/* Add Comment */}
+                <div className="flex gap-3 pt-4 border-t border-slate-100">
+                  <Avatar className="h-8 w-8 shrink-0 ring-2 ring-violet-100">
+                    <AvatarFallback className="text-xs bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white font-medium">
+                      {getInitials(user?.first_name, user?.last_name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 flex gap-2">
+                    <Textarea
+                      placeholder="Add a comment..."
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      className="min-h-20 resize-none border-slate-200 focus:border-violet-300 focus:ring-violet-200"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                          handleCommentSubmit();
+                        }
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      onClick={handleCommentSubmit}
+                      disabled={!newComment.trim() || isSubmittingComment}
+                      className="shrink-0 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 shadow-lg shadow-violet-500/25"
+                    >
+                      {isSubmittingComment ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
-              )}
-              {canEditTask && (
-                <Button className="mt-4" variant="outline">
-                  <Upload className="mr-2 h-4 w-4" />
-                  Upload File
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+          </div>
 
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Activity */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Activity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Activity feed will appear here.</p>
-            </CardContent>
-          </Card>
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Status Card */}
+            <Card className="border-0 shadow-lg shadow-slate-200/50 overflow-hidden">
+              <div className="h-1 bg-gradient-to-r from-violet-500 to-fuchsia-500" />
+              <CardHeader>
+                <CardTitle className="text-lg">Status</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Select
+                  value={task.status}
+                  onValueChange={handleStatusChange}
+                  disabled={isChangingStatus}
+                >
+                  <SelectTrigger className="w-full border-violet-200 focus:border-violet-400 focus:ring-violet-200">
+                    {isChangingStatus ? (
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin text-violet-600" />
+                        Updating...
+                      </div>
+                    ) : (
+                      <SelectValue />
+                    )}
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(statusConfig).map(([value, config]) => (
+                      <SelectItem key={value} value={value}>
+                        <div className="flex items-center gap-2">
+                          <div className={cn(
+                            "w-2 h-2 rounded-full",
+                            value === 'todo' && "bg-slate-400",
+                            value === 'in_progress' && "bg-blue-500",
+                            value === 'review' && "bg-amber-500",
+                            value === 'done' && "bg-emerald-500"
+                          )} />
+                          {config.label}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </CardContent>
+            </Card>
 
-          {/* Comments */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5" />
-                Comments
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Textarea
-                placeholder="Add a comment..."
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                rows={3}
-              />
-              <Button className="w-full" disabled={!comment.trim()}>
-                Post Comment
-              </Button>
-            </CardContent>
-          </Card>
+            {/* Details Card */}
+            <Card className="border-0 shadow-lg shadow-slate-200/50 overflow-hidden">
+              <div className="h-1 bg-gradient-to-r from-fuchsia-500 to-pink-500" />
+              <CardHeader>
+                <CardTitle className="text-lg">Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Created By */}
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-slate-50 to-white border border-slate-100">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
+                    <User className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Created by</p>
+                    <p className="text-sm font-medium text-slate-900">
+                      {task.created_by?.first_name} {task.created_by?.last_name}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Assigned To */}
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-gradient-to-r from-slate-50 to-white border border-slate-100">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center">
+                    <Users className="h-5 w-5 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs text-slate-500 mb-1">Assigned to</p>
+                    {task.assigned_to && task.assigned_to.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {task.assigned_to.map((assignee) => (
+                          <Badge key={assignee.id} className="text-xs bg-gradient-to-r from-violet-100 to-fuchsia-100 text-violet-700 border-0">
+                            {assignee.first_name} {assignee.last_name}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500">Unassigned</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Due Date */}
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-slate-50 to-white border border-slate-100">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center">
+                    <Calendar className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Due date</p>
+                    <p className="text-sm font-medium text-slate-900">
+                      {task.due_date
+                        ? format(new Date(task.due_date), 'MMM d, yyyy')
+                        : 'No due date'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Created At */}
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-slate-50 to-white border border-slate-100">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
+                    <Clock className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Created</p>
+                    <p className="text-sm font-medium text-slate-900">
+                      {format(new Date(task.created_at), 'MMM d, yyyy')}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Activity Log Teaser */}
+            <Card className="border-0 shadow-lg shadow-slate-200/50 overflow-hidden">
+              <div className="h-1 bg-gradient-to-r from-cyan-500 to-blue-500" />
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">Recent Activity</CardTitle>
+                  <Link to={`/tasks/${id}/activity`}>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-xs text-violet-600 hover:text-violet-700 hover:bg-violet-50"
+                    >
+                      View all
+                    </Button>
+                  </Link>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3 text-sm">
+                    <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 mt-1.5 ring-4 ring-emerald-100" />
+                    <div>
+                      <p className="text-slate-700 font-medium">Task created</p>
+                      <p className="text-xs text-slate-500">
+                        {format(new Date(task.created_at), 'MMM d, yyyy h:mm a')}
+                      </p>
+                    </div>
+                  </div>
+                  {task.updated_at !== task.created_at && (
+                    <div className="flex items-start gap-3 text-sm">
+                      <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 mt-1.5 ring-4 ring-blue-100" />
+                      <div>
+                        <p className="text-slate-700 font-medium">Last updated</p>
+                        <p className="text-xs text-slate-500">
+                          {format(new Date(task.updated_at), 'MMM d, yyyy h:mm a')}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </div>
   );
-};
+}
+
+export default TaskDetailPage;

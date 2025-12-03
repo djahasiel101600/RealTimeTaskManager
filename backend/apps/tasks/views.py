@@ -2,12 +2,14 @@ from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import Task, TaskAttachment, ActivityLog
+from .models import Task, TaskAttachment, ActivityLog, Comment
 from .serializers import (
     TaskSerializer, TaskUpdateSerializer, 
-    TaskAttachmentSerializer, ActivityLogSerializer
+    TaskAttachmentSerializer, ActivityLogSerializer,
+    CommentSerializer
 )
 from .permissions import (
     TaskPermissions, TaskAttachmentPermissions,
@@ -17,6 +19,7 @@ from apps.notifications.models import send_notification_ws
 import logging
 
 logger = logging.getLogger(__name__)
+User = get_user_model()
 
 
 class TaskViewSet(viewsets.ModelViewSet):
@@ -235,6 +238,116 @@ class TaskViewSet(viewsets.ModelViewSet):
         logs = ActivityLog.objects.filter(task=task)
         serializer = ActivityLogSerializer(logs, many=True)
         return Response(serializer.data)
+    
+    @action(detail=True, methods=['get', 'post'], permission_classes=[IsAuthenticated])
+    def attachments(self, request, pk=None):
+        """Get or upload attachments for a task"""
+        task = self.get_object()
+        
+        if request.method == 'GET':
+            attachments = TaskAttachment.objects.filter(task=task)
+            serializer = TaskAttachmentSerializer(attachments, many=True)
+            return Response(serializer.data)
+        
+        elif request.method == 'POST':
+            file = request.FILES.get('file')
+            
+            if not file:
+                return Response(
+                    {'error': 'No file provided'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Validate file size (max 50MB)
+            if file.size > 50 * 1024 * 1024:
+                return Response(
+                    {'error': 'File size exceeds 50MB limit'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            attachment = TaskAttachment.objects.create(
+                task=task,
+                file=file,
+                uploaded_by=request.user,
+                file_name=file.name,
+                file_size=file.size,
+                mime_type=file.content_type or 'application/octet-stream'
+            )
+            
+            # Create activity log
+            self.create_activity_log(task, 'file_attached', {
+                'file_name': file.name,
+                'file_size': file.size,
+            })
+            
+            # Send notification to all assigned users (except uploader)
+            for user in task.assigned_to.all():
+                if user.id != request.user.id:
+                    send_notification_ws(user.id, {
+                        'type': 'file_attached',
+                        'title': 'File Attached',
+                        'message': f'New file attached to task "{task.title}"',
+                        'task_id': task.id,
+                        'file_name': file.name,
+                    })
+            
+            serializer = TaskAttachmentSerializer(attachment)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+    @action(detail=True, methods=['get', 'post'], permission_classes=[IsAuthenticated])
+    def comments(self, request, pk=None):
+        """Get or create comments for a task"""
+        task = self.get_object()
+        
+        if request.method == 'GET':
+            comments = Comment.objects.filter(task=task)
+            serializer = CommentSerializer(comments, many=True)
+            return Response(serializer.data)
+        
+        elif request.method == 'POST':
+            content = request.data.get('content', '').strip()
+            
+            if not content:
+                return Response(
+                    {'error': 'Comment content is required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            comment = Comment.objects.create(
+                task=task,
+                user=request.user,
+                content=content
+            )
+            
+            # Create activity log
+            self.create_activity_log(task, 'comment_added', {
+                'comment_id': comment.id,
+                'content_preview': content[:50] + '...' if len(content) > 50 else content
+            })
+            
+            # Send notification to all assigned users (except commenter)
+            for user in task.assigned_to.all():
+                if user.id != request.user.id:
+                    send_notification_ws(user.id, {
+                        'type': 'comment_added',
+                        'title': 'New Comment',
+                        'message': f'{request.user.first_name or request.user.username} commented on task "{task.title}"',
+                        'task_id': task.id,
+                        'comment_id': comment.id,
+                    })
+            
+            # Also notify task creator if different from commenter and not assigned
+            if task.created_by.id != request.user.id and task.created_by not in task.assigned_to.all():
+                send_notification_ws(task.created_by.id, {
+                    'type': 'comment_added',
+                    'title': 'New Comment',
+                    'message': f'{request.user.first_name or request.user.username} commented on task "{task.title}"',
+                    'task_id': task.id,
+                    'comment_id': comment.id,
+                })
+            
+            serializer = CommentSerializer(comment)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
     
     def create_activity_log(self, task, action, details=None):
         """Helper method to create activity logs"""
