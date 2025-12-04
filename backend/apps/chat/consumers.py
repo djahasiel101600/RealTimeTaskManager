@@ -71,9 +71,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def handle_send_message(self, data):
         """Wrapper to handle send_message with error handling"""
         try:
+            logger.info(f"User {self.user.id} sending message: room_type={data.get('room_type')}, room_id={data.get('room_id')}")
             await self.send_message(data)
+            logger.info(f"Message sent successfully by user {self.user.id}")
         except Exception as e:
-            logger.error(f"Error sending message: {e}")
+            logger.error(f"Error sending message: {e}", exc_info=True)
             # Send error back to client
             await self.send(text_data=json.dumps({
                 'type': 'error',
@@ -177,11 +179,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     'sender': {
                         'id': self.user.id,
                         'username': self.user.username,
-                        'avatar': getattr(self.user, 'avatar', None) and self.user.avatar.url
+                        'avatar': self.user.avatar.url if self.user.avatar and hasattr(self.user.avatar, 'url') else None
                     },
                     'timestamp': chat_message.timestamp.isoformat(),
                     'room_type': room_type,
-                    'room_id': actual_room_id  # Use actual room ID for correct message routing
+                    'room_id': actual_room_id,
+                    'attachments': []  # WebSocket messages don't have attachments (sent via HTTP)
                 }
             }
         )
@@ -191,13 +194,33 @@ class ChatConsumer(AsyncWebsocketConsumer):
         from django.contrib.auth import get_user_model
         User = get_user_model()  # safe inside method
 
+        logger.info(f"save_message called: room_type={room_type}, room_id={room_id}, user={self.user.id}")
+
         if room_type == 'task':
-            from apps.tasks.models import Task
-            task = Task.objects.get(id=room_id)
-            room, _ = ChatRoom.objects.get_or_create(
-                task=task,
-                room_type='task'
-            )
+            # room_id is the ChatRoom ID, not the Task ID
+            # First try to find existing task chat room by ID
+            try:
+                room = ChatRoom.objects.get(id=room_id, room_type='task')
+                logger.info(f"Found existing task chat room: {room.id}")
+            except ChatRoom.DoesNotExist:
+                # If not found, room_id might be the task ID (legacy behavior)
+                logger.info(f"Task chat room {room_id} not found, trying as task ID")
+                from apps.tasks.models import Task
+                task = Task.objects.get(id=room_id)
+                room, created = ChatRoom.objects.get_or_create(
+                    task=task,
+                    room_type='task'
+                )
+                logger.info(f"{'Created' if created else 'Found'} task chat room: {room.id} for task {task.id}")
+                # Add task participants to the chat room if newly created
+                if created:
+                    participants = [task.created_by] + list(task.assigned_to.all())
+                    room.participants.add(*participants)
+            
+            # Ensure current user is a participant
+            if not room.participants.filter(id=self.user.id).exists():
+                room.participants.add(self.user)
+                logger.info(f"Added user {self.user.id} as participant to room {room.id}")
         elif room_type == 'direct':
             # room_id could be either the actual room ID or the other user's ID
             # Try to get the room first by ID
@@ -211,10 +234,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     user2=other_user
                 )
         elif room_type == 'group':
-            room, _ = ChatRoom.objects.get_or_create(
-                role_group=room_id,
-                room_type='group'
-            )
+            # For group chats, room_id is the actual room ID
+            try:
+                room = ChatRoom.objects.get(id=room_id, room_type='group')
+            except ChatRoom.DoesNotExist:
+                raise ValueError(f"Group chat room {room_id} does not exist")
         else:
             # Fallback - try to get room by ID
             room = ChatRoom.objects.get(id=room_id)
@@ -224,6 +248,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
             sender=self.user,
             content=message
         )
+        
+        logger.info(f"Message saved: id={msg.id}, room={room.id}, sender={self.user.id}, content_length={len(message)}")
         
         # Return both the message and the actual room ID
         return msg, room.id

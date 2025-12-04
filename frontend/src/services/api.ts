@@ -144,6 +144,14 @@ export const notificationService = {
 };
 
 // Chat Service
+export interface MessagesPaginatedResponse {
+  results: Message[];
+  count: number;
+  page: number;
+  page_size: number;
+  has_more: boolean;
+}
+
 export const chatService = {
   getRooms: () =>
     api.get<PaginatedResponse<ChatRoom> | ChatRoom[]>('/chat/rooms/').then(res => {
@@ -157,15 +165,9 @@ export const chatService = {
   getRoom: (id: number) =>
     api.get<ChatRoom>(`/chat/rooms/${id}/`).then(res => res.data),
 
-  getMessages: (roomId: number, params?: any) =>
-    api.get<PaginatedResponse<Message> | Message[]>(`/chat/rooms/${roomId}/messages/`, { params })
-      .then(res => {
-        const data = res.data;
-        if (Array.isArray(data)) {
-          return data;
-        }
-        return data.results;
-      }),
+  getMessages: (roomId: number, params?: { page?: number; page_size?: number }) =>
+    api.get<MessagesPaginatedResponse>(`/chat/rooms/${roomId}/messages/`, { params })
+      .then(res => res.data),
 
   sendMessage: (roomId: number, content: string, attachments: File[] = []) => {
     const formData = new FormData();

@@ -32,6 +32,7 @@ services:
       - "8001:8000"  # Direct backend access
     environment:
       - DEBUG=1
+      - BACKEND_URL=http://localhost
 
   # Enable frontend development mode
   frontend:

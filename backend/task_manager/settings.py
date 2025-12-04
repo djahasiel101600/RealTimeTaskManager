@@ -172,9 +172,14 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# File upload limits
-DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50MB
-FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50MB
+# Backend URL for building absolute URLs (used for file attachments)
+# In Docker/production: Nginx serves media, so use the public URL
+# In development: Use localhost with port
+BACKEND_URL = os.environ.get('BACKEND_URL', 'http://localhost')
+
+# File upload limits (25MB for attachments)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 26214400  # 25MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 26214400  # 25MB
 
 # Email (Gmail SMTP for notifications)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'

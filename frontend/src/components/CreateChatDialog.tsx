@@ -74,9 +74,7 @@ export const CreateChatDialog: React.FC<CreateChatDialogProps> = ({
     const searchLower = searchTerm.toLowerCase();
     return (
       user.username?.toLowerCase().includes(searchLower) ||
-      user.email?.toLowerCase().includes(searchLower) ||
-      user.first_name?.toLowerCase().includes(searchLower) ||
-      user.last_name?.toLowerCase().includes(searchLower)
+      user.email?.toLowerCase().includes(searchLower)
     );
   });
 
@@ -175,16 +173,10 @@ export const CreateChatDialog: React.FC<CreateChatDialogProps> = ({
   };
 
   const getUserDisplayName = (user: User) => {
-    if (user.first_name || user.last_name) {
-      return `${user.first_name || ''} ${user.last_name || ''}`.trim();
-    }
     return user.username;
   };
 
   const getInitials = (user: User) => {
-    if (user.first_name && user.last_name) {
-      return `${user.first_name[0]}${user.last_name[0]}`.toUpperCase();
-    }
     return user.username?.[0]?.toUpperCase() || '?';
   };
 
@@ -200,7 +192,7 @@ export const CreateChatDialog: React.FC<CreateChatDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg p-0 gap-0 overflow-hidden">
+      <DialogContent className="sm:max-w-lg p-0 gap-0 overflow-hidden bg-white">
         <DialogHeader className="p-6 pb-4 bg-linear-to-r from-violet-50 to-fuchsia-50 border-b border-violet-100">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-linear-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/25">

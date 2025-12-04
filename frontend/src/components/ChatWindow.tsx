@@ -1,5 +1,45 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { Send, Paperclip, X, Loader2, MessageSquare, WifiOff } from 'lucide-react';
+import type { ImgHTMLAttributes } from 'react';
+import { Send, Paperclip, X, Loader2, MessageSquare, WifiOff, Download, FileText, Image, Film, Music } from 'lucide-react';
+
+// Image component with retry logic for handling race conditions
+const RetryImage: React.FC<ImgHTMLAttributes<HTMLImageElement> & { maxRetries?: number }> = ({ 
+  src, 
+  alt, 
+  maxRetries = 3, 
+  onError,
+  ...props 
+}) => {
+  const [retryCount, setRetryCount] = useState(0);
+  const [currentSrc, setCurrentSrc] = useState(src);
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    setRetryCount(0);
+    setCurrentSrc(src);
+    setHasError(false);
+  }, [src]);
+
+  const handleError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    if (retryCount < maxRetries) {
+      // Retry after a delay, adding a cache-busting query param
+      setTimeout(() => {
+        const newSrc = src + (src?.includes('?') ? '&' : '?') + `retry=${retryCount + 1}&t=${Date.now()}`;
+        setCurrentSrc(newSrc);
+        setRetryCount(prev => prev + 1);
+      }, 500 * (retryCount + 1)); // Exponential backoff: 500ms, 1000ms, 1500ms
+    } else {
+      setHasError(true);
+      onError?.(e);
+    }
+  };
+
+  if (hasError) {
+    return null; // Hide broken image
+  }
+
+  return <img src={currentSrc} alt={alt} onError={handleError} {...props} />;
+};
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -21,15 +61,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ roomId, roomType }) => {
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [pendingMessages, setPendingMessages] = useState<Array<{id: string; content: string; timestamp: Date}>>([]);
-  const { messages, fetchMessages, sendMessage, typingUsers, isLoading } = useChatStore();
+  const { messages, fetchMessages, loadMoreMessages, typingUsers, isLoading, isLoadingMore, hasMore } = useChatStore();
+  const { sendMessage } = useChatStore();
   const { user } = useAuthStore();
   const { joinRoom, leaveRoom, sendMessage: wsSendMessage, sendTypingIndicator, isChatConnected } = useWebSocket();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isTyping, setIsTyping] = useState(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMountedRef = useRef(true);
+  const isInitialLoadRef = useRef(true);
+  const previousScrollHeightRef = useRef<number>(0);
 
   // Track mounted state for cleanup
   useEffect(() => {
@@ -68,10 +112,43 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ roomId, roomType }) => {
     };
   }, [roomId, roomType, isChatConnected, fetchMessages, joinRoom, leaveRoom]);
 
-  // Scroll to bottom when new messages arrive
+  // Scroll to bottom on initial load and new messages
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (isInitialLoadRef.current && messages.length > 0 && !isLoading) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+      isInitialLoadRef.current = false;
+    } else if (!isLoadingMore) {
+      // Scroll to bottom for new messages (not when loading more old messages)
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, isLoading, isLoadingMore]);
+
+  // Maintain scroll position when loading more messages
+  useEffect(() => {
+    if (!isLoadingMore && previousScrollHeightRef.current > 0 && messagesContainerRef.current) {
+      const newScrollHeight = messagesContainerRef.current.scrollHeight;
+      const scrollDiff = newScrollHeight - previousScrollHeightRef.current;
+      messagesContainerRef.current.scrollTop = scrollDiff;
+      previousScrollHeightRef.current = 0;
+    }
+  }, [messages, isLoadingMore]);
+
+  // Handle scroll to load more messages
+  const handleScroll = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container || isLoadingMore || !hasMore) return;
+
+    // Load more when scrolled near the top (within 100px)
+    if (container.scrollTop < 100) {
+      previousScrollHeightRef.current = container.scrollHeight;
+      loadMoreMessages(roomId);
+    }
+  }, [roomId, isLoadingMore, hasMore, loadMoreMessages]);
+
+  // Reset initial load flag when room changes
+  useEffect(() => {
+    isInitialLoadRef.current = true;
+  }, [roomId]);
 
   // Debounced typing indicator with proper cleanup
   const sendDebouncedTypingIndicator = useCallback((typing: boolean) => {
@@ -205,7 +282,27 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ roomId, roomType }) => {
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-linear-to-b from-white to-slate-50/50">
-      <div className="flex-1 min-h-0 overflow-y-auto p-4">
+      <div 
+        ref={messagesContainerRef}
+        className="flex-1 min-h-0 overflow-y-auto p-4"
+        onScroll={handleScroll}
+      >
+        {/* Load more indicator */}
+        {isLoadingMore && (
+          <div className="flex justify-center py-2 mb-2">
+            <Loader2 className="h-5 w-5 animate-spin text-violet-500" />
+          </div>
+        )}
+        {hasMore && !isLoadingMore && (
+          <div className="flex justify-center py-2 mb-2">
+            <button 
+              onClick={() => loadMoreMessages(roomId)}
+              className="text-sm text-violet-500 hover:text-violet-700"
+            >
+              Load older messages
+            </button>
+          </div>
+        )}
         {isLoading ? (
           <div className="flex justify-center items-center h-full py-8">
             <div className="flex flex-col items-center gap-3">
@@ -279,22 +376,80 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ roomId, roomType }) => {
                     <p className="text-sm whitespace-pre-wrap wrap-break-words">{msg.content}</p>
                     {msg.attachments && msg.attachments.length > 0 && (
                       <div className="mt-2 space-y-2">
-                        {msg.attachments.map((attachment: MessageAttachment) => (
-                          <div
-                            key={attachment.id}
-                            className={cn(
-                              "flex items-center gap-2 p-2 rounded-lg",
-                              isOwnMessage 
-                                ? "bg-white/10" 
-                                : "bg-linear-to-r from-slate-50 to-violet-50"
-                            )}
-                          >
-                            <Paperclip className="h-4 w-4" />
-                            <span className="text-sm truncate">
-                              {attachment.file_name}
-                            </span>
-                          </div>
-                        ))}
+                        {msg.attachments.map((attachment: MessageAttachment) => {
+                          // Determine icon based on mime type
+                          const getFileIcon = () => {
+                            if (attachment.mime_type?.startsWith('image/')) return <Image className="h-4 w-4 shrink-0" />;
+                            if (attachment.mime_type?.startsWith('video/')) return <Film className="h-4 w-4 shrink-0" />;
+                            if (attachment.mime_type?.startsWith('audio/')) return <Music className="h-4 w-4 shrink-0" />;
+                            return <FileText className="h-4 w-4 shrink-0" />;
+                          };
+                          
+                          // Format file size
+                          const formatFileSize = (bytes: number) => {
+                            if (bytes < 1024) return `${bytes} B`;
+                            if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+                            return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+                          };
+                          
+                          // Check if it's an image for preview
+                          const isImage = attachment.mime_type?.startsWith('image/');
+                          
+                          // Use file_url if available, otherwise fall back to file
+                          const fileUrl = attachment.file_url || attachment.file;
+                          
+                          return (
+                            <div key={attachment.id}>
+                              {/* Image preview */}
+                              {isImage && fileUrl && (
+                                <a 
+                                  href={fileUrl} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="block mb-1"
+                                >
+                                  <RetryImage 
+                                    src={fileUrl} 
+                                    alt={attachment.file_name}
+                                    className="max-w-[200px] max-h-[150px] rounded-lg object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                                    loading="lazy"
+                                    maxRetries={3}
+                                  />
+                                </a>
+                              )}
+                              {/* File info and download */}
+                              <a
+                                href={fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                download={attachment.file_name}
+                                className={cn(
+                                  "flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-all",
+                                  isOwnMessage 
+                                    ? "bg-white/10 hover:bg-white/20" 
+                                    : "bg-linear-to-r from-slate-50 to-violet-50 hover:from-slate-100 hover:to-violet-100"
+                                )}
+                              >
+                                {getFileIcon()}
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium truncate">
+                                    {attachment.file_name}
+                                  </p>
+                                  <p className={cn(
+                                    "text-xs",
+                                    isOwnMessage ? "text-white/60" : "text-slate-400"
+                                  )}>
+                                    {formatFileSize(attachment.file_size)}
+                                  </p>
+                                </div>
+                                <Download className={cn(
+                                  "h-4 w-4 shrink-0",
+                                  isOwnMessage ? "text-white/70" : "text-violet-500"
+                                )} />
+                              </a>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>

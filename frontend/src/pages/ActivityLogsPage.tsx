@@ -10,11 +10,15 @@ import {
   Download,
   RefreshCw,
   Activity,
-  Loader2
+  Loader2,
+  Filter,
+  X,
+  Clock,
+  Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -25,37 +29,15 @@ import { format, subDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { activityLogService, type ActivityLog } from '@/services/api';
 
-const actionIcons: Record<string, React.ReactNode> = {
-  created: <FileText className="h-4 w-4" />,
-  updated: <RefreshCw className="h-4 w-4" />,
-  deleted: <AlertCircle className="h-4 w-4" />,
-  status_changed: <CheckCircle className="h-4 w-4" />,
-  file_attached: <FileText className="h-4 w-4" />,
-  file_removed: <FileText className="h-4 w-4" />,
-  assigned: <User className="h-4 w-4" />,
-  chat_message: <MessageSquare className="h-4 w-4" />,
-};
-
-const actionColors: Record<string, string> = {
-  created: 'bg-green-100 text-green-800',
-  updated: 'bg-blue-100 text-blue-800',
-  deleted: 'bg-red-100 text-red-800',
-  status_changed: 'bg-purple-100 text-purple-800',
-  file_attached: 'bg-yellow-100 text-yellow-800',
-  file_removed: 'bg-orange-100 text-orange-800',
-  assigned: 'bg-indigo-100 text-indigo-800',
-  chat_message: 'bg-pink-100 text-pink-800',
-};
-
-const actionLabels: Record<string, string> = {
-  created: 'Created',
-  updated: 'Updated',
-  deleted: 'Deleted',
-  status_changed: 'Status Changed',
-  file_attached: 'File Attached',
-  file_removed: 'File Removed',
-  assigned: 'Assigned',
-  chat_message: 'Chat Message',
+const actionConfig: Record<string, { icon: React.ElementType; label: string; color: string; bgColor: string }> = {
+  created: { icon: FileText, label: 'Created', color: 'text-emerald-700', bgColor: 'bg-emerald-50 border-emerald-200' },
+  updated: { icon: RefreshCw, label: 'Updated', color: 'text-blue-700', bgColor: 'bg-blue-50 border-blue-200' },
+  deleted: { icon: AlertCircle, label: 'Deleted', color: 'text-rose-700', bgColor: 'bg-rose-50 border-rose-200' },
+  status_changed: { icon: CheckCircle, label: 'Status Changed', color: 'text-violet-700', bgColor: 'bg-violet-50 border-violet-200' },
+  file_attached: { icon: FileText, label: 'File Attached', color: 'text-amber-700', bgColor: 'bg-amber-50 border-amber-200' },
+  file_removed: { icon: FileText, label: 'File Removed', color: 'text-orange-700', bgColor: 'bg-orange-50 border-orange-200' },
+  assigned: { icon: User, label: 'Assigned', color: 'text-indigo-700', bgColor: 'bg-indigo-50 border-indigo-200' },
+  chat_message: { icon: MessageSquare, label: 'Chat Message', color: 'text-pink-700', bgColor: 'bg-pink-50 border-pink-200' },
 };
 
 export const ActivityLogsPage: React.FC = () => {
@@ -93,7 +75,6 @@ export const ActivityLogsPage: React.FC = () => {
       setTotalCount(response.count);
     } catch (error) {
       console.error('Failed to load activity logs:', error);
-      // Fallback to mock data if API is not available
       setLogs([]);
       setTotalCount(0);
     } finally {
@@ -152,7 +133,7 @@ export const ActivityLogsPage: React.FC = () => {
     const csvData = filteredLogs.map(log => [
       format(new Date(log.timestamp), 'yyyy-MM-dd HH:mm:ss'),
       log.user.username,
-      actionLabels[log.action] || log.action,
+      actionConfig[log.action]?.label || log.action,
       log.task_title || 'N/A',
       JSON.stringify(log.details),
     ]);
@@ -171,51 +152,143 @@ export const ActivityLogsPage: React.FC = () => {
     window.URL.revokeObjectURL(url);
   };
 
+  const clearFilters = () => {
+    setSearchTerm('');
+    setActionFilter('all');
+    setDateRange({ from: subDays(new Date(), 30), to: new Date() });
+  };
+
+  const hasActiveFilters = searchTerm || actionFilter !== 'all';
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Activity Logs</h1>
-          <p className="text-muted-foreground">
-            Track all system activities and user actions
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={exportToCSV}>
-            <Download className="mr-2 h-4 w-4" />
-            Export CSV
-          </Button>
-          <Button variant="outline" onClick={loadLogs}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
-          </Button>
+    <div className="space-y-6 animate-fade-in">
+      {/* Header */}
+      <div className="relative overflow-hidden rounded-2xl bg-linear-to-br from-indigo-600 via-violet-600 to-purple-600 p-8 text-white shadow-xl shadow-violet-500/20">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIj48cGF0aCBkPSJNMzYgMzRjMC0yLjIwOS0xLjc5MS00LTQtNHMtNCAxLjc5MS00IDQgMS43OTEgNCA0IDQgNC0xLjc5MSA0LTR6bTAtMThjMC0yLjIwOS0xLjc5MS00LTQtNHMtNCAxLjc5MS00IDQgMS43OTEgNCA0IDQgNC0xLjc5MSA0LTR6bTE4IDBjMC0yLjIwOS0xLjc5MS00LTQtNHMtNCAxLjc5MS00IDQgMS43OTEgNCA0IDQgNC0xLjc5MSA0LTR6Ii8+PC9nPjwvZz48L3N2Zz4=')] opacity-30" />
+        <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2.5 bg-white/20 rounded-xl">
+                <Activity className="h-6 w-6" />
+              </div>
+              <h1 className="text-3xl font-bold">Activity Logs</h1>
+            </div>
+            <p className="text-white/80 max-w-xl">
+              Track all system activities and user actions in real-time
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="secondary" 
+              onClick={exportToCSV}
+              className="bg-white/20 hover:bg-white/30 text-white border-0 shadow-lg"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export
+            </Button>
+            <Button 
+              variant="secondary" 
+              onClick={loadLogs}
+              className="bg-white text-violet-700 hover:bg-white/90 border-0 shadow-lg"
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Refresh
+            </Button>
+          </div>
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col md:flex-row gap-4">
+      {/* Statistics */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 stagger-children">
+        <Card className="border-0 shadow-lg shadow-slate-200/50 overflow-hidden">
+          <div className="h-1 bg-linear-to-r from-violet-500 to-purple-500" />
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-linear-to-br from-violet-500 to-purple-500 shadow-lg shadow-violet-500/30">
+                <Activity className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-slate-500">Total Activities</p>
+                <p className="text-3xl font-bold text-slate-900">{totalCount.toLocaleString()}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-0 shadow-lg shadow-slate-200/50 overflow-hidden">
+          <div className="h-1 bg-linear-to-r from-blue-500 to-indigo-500" />
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-linear-to-br from-blue-500 to-indigo-500 shadow-lg shadow-blue-500/30">
+                <Filter className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-slate-500">Filtered Results</p>
+                <p className="text-3xl font-bold text-slate-900">{filteredLogs.length.toLocaleString()}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-0 shadow-lg shadow-slate-200/50 overflow-hidden">
+          <div className="h-1 bg-linear-to-r from-emerald-500 to-teal-500" />
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-linear-to-br from-emerald-500 to-teal-500 shadow-lg shadow-emerald-500/30">
+                <User className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-slate-500">Active Users</p>
+                <p className="text-3xl font-bold text-slate-900">
+                  {logs.length > 0 ? new Set(logs.map(l => l.user?.id)).size : 0}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <Card className="border-0 shadow-lg shadow-slate-200/50">
+        <CardContent className="p-6">
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* Search */}
             <div className="flex-1">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input
-                  placeholder="Search activities..."
-                  className="pl-10"
+                  placeholder="Search by user, task, or file..."
+                  className="pl-10 h-11 bg-slate-50 border-slate-200 focus:bg-white focus:border-violet-300 transition-colors"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
+                {searchTerm && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+                    onClick={() => setSearchTerm('')}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                )}
               </div>
             </div>
-            <div className="flex gap-2">
+            
+            {/* Filters */}
+            <div className="flex flex-wrap gap-2">
               <Select value={actionFilter} onValueChange={setActionFilter}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[180px] h-11 bg-slate-50 border-slate-200">
                   <SelectValue placeholder="Filter by action" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Actions</SelectItem>
-                  {Object.entries(actionLabels).map(([value, label]) => (
+                  {Object.entries(actionConfig).map(([value, config]) => (
                     <SelectItem key={value} value={value}>
-                      {label}
+                      <span className="flex items-center gap-2">
+                        <config.icon className={cn("h-3.5 w-3.5", config.color)} />
+                        {config.label}
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -223,9 +296,11 @@ export const ActivityLogsPage: React.FC = () => {
               
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-[180px] justify-start">
-                    <Calendar className="mr-2 h-4 w-4" />
-                    {format(dateRange.from, 'LLL dd, y')} - {format(dateRange.to, 'LLL dd, y')}
+                  <Button variant="outline" className="h-11 px-4 bg-slate-50 border-slate-200 hover:bg-white">
+                    <Calendar className="mr-2 h-4 w-4 text-slate-500" />
+                    <span className="text-slate-700">
+                      {format(dateRange.from, 'MMM d')} - {format(dateRange.to, 'MMM d, yyyy')}
+                    </span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="end">
@@ -246,29 +321,61 @@ export const ActivityLogsPage: React.FC = () => {
                   />
                 </PopoverContent>
               </Popover>
+
+              {hasActiveFilters && (
+                <Button 
+                  variant="ghost" 
+                  onClick={clearFilters}
+                  className="h-11 text-slate-500 hover:text-slate-700"
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Clear
+                </Button>
+              )}
             </div>
           </div>
-        </CardHeader>
-        <CardContent>
+        </CardContent>
+      </Card>
+
+      {/* Activity List */}
+      <Card className="border-0 shadow-lg shadow-slate-200/50 overflow-hidden">
+        <CardContent className="p-0">
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-16">
-              <Loader2 className="h-10 w-10 animate-spin text-indigo-600 mb-4" />
-              <p className="text-muted-foreground">Loading activity logs...</p>
+            <div className="flex flex-col items-center justify-center py-20">
+              <div className="relative">
+                <div className="absolute inset-0 bg-violet-500/20 rounded-full blur-xl animate-pulse" />
+                <div className="w-16 h-16 rounded-2xl bg-linear-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-white" />
+                </div>
+              </div>
+              <p className="text-slate-600 mt-6 font-medium">Loading activity logs...</p>
             </div>
           ) : filteredLogs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16">
-              <div className="p-4 bg-slate-100 rounded-full mb-4">
-                <Activity className="h-10 w-10 text-slate-400" />
+            <div className="flex flex-col items-center justify-center py-20 px-4">
+              <div className="relative mb-6">
+                <div className="w-20 h-20 rounded-2xl bg-linear-to-br from-slate-100 to-slate-50 flex items-center justify-center">
+                  <Activity className="h-10 w-10 text-slate-300" />
+                </div>
+                <Sparkles className="absolute -top-1 -right-1 h-6 w-6 text-violet-400" />
               </div>
-              <h3 className="text-lg font-medium text-slate-900 mb-2">No Activity Found</h3>
-              <p className="text-center text-muted-foreground max-w-sm">
-                No activity logs found for the selected filters. Try adjusting your search or date range.
+              <h3 className="text-xl font-semibold text-slate-900 mb-2">No activities found</h3>
+              <p className="text-slate-500 text-center max-w-sm mb-6">
+                {hasActiveFilters 
+                  ? "Try adjusting your search or filter criteria" 
+                  : "No activity logs available for the selected date range"}
               </p>
+              {hasActiveFilters && (
+                <Button variant="outline" onClick={clearFilters} className="border-violet-200 hover:bg-violet-50">
+                  Clear all filters
+                </Button>
+              )}
             </div>
           ) : (
             <ScrollArea className="h-[600px]">
-              <div className="space-y-4 pr-4">
-                {filteredLogs.map((log) => {
+              <div className="divide-y divide-slate-100">
+                {filteredLogs.map((log, index) => {
+                  const config = actionConfig[log.action] || actionConfig.updated;
+                  const Icon = config.icon;
                   const displayName = log.user?.first_name && log.user?.last_name
                     ? `${log.user.first_name} ${log.user.last_name}`
                     : log.user?.username || 'Unknown';
@@ -276,49 +383,49 @@ export const ActivityLogsPage: React.FC = () => {
                   return (
                     <div
                       key={log.id}
-                      className="flex items-start gap-4 p-4 border rounded-lg hover:bg-accent/50 transition-colors"
+                      className="group flex items-start gap-4 p-5 hover:bg-slate-50/80 transition-colors"
+                      style={{ animationDelay: `${index * 0.03}s` }}
                     >
-                      <div className="mt-1">
-                        <div className={cn(
-                          "h-8 w-8 rounded-full flex items-center justify-center",
-                          actionColors[log.action] || 'bg-gray-100'
-                        )}>
-                          {actionIcons[log.action] || <FileText className="h-4 w-4" />}
-                        </div>
+                      {/* Icon */}
+                      <div className={cn(
+                        "shrink-0 w-10 h-10 rounded-xl flex items-center justify-center border",
+                        config.bgColor
+                      )}>
+                        <Icon className={cn("h-5 w-5", config.color)} />
                       </div>
                       
+                      {/* Content */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <Avatar className="h-6 w-6">
+                        <div className="flex items-start justify-between gap-4 mb-1.5">
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <Avatar className="h-6 w-6 ring-2 ring-white">
                               <AvatarImage src={log.user?.avatar} />
-                              <AvatarFallback>
+                              <AvatarFallback className="text-xs bg-linear-to-br from-violet-500 to-fuchsia-500 text-white">
                                 {displayName.charAt(0).toUpperCase()}
                               </AvatarFallback>
                             </Avatar>
-                            <span className="font-medium">{displayName}</span>
-                            <Badge variant="outline" className={cn(actionColors[log.action])}>
-                              {actionLabels[log.action] || log.action}
+                            <span className="font-semibold text-slate-900">{displayName}</span>
+                            <Badge variant="outline" className={cn("text-xs font-medium border", config.bgColor, config.color)}>
+                              {config.label}
                             </Badge>
                           </div>
-                          <span className="text-sm text-muted-foreground">
-                            {format(new Date(log.timestamp), 'MMM dd, yyyy HH:mm')}
-                          </span>
+                          <div className="flex items-center gap-1.5 text-sm text-slate-400 shrink-0">
+                            <Clock className="h-3.5 w-3.5" />
+                            {format(new Date(log.timestamp), 'MMM d, h:mm a')}
+                          </div>
                         </div>
                         
-                        <p className="text-sm mb-2">{getActionDescription(log)}</p>
+                        <p className="text-sm text-slate-600 leading-relaxed">{getActionDescription(log)}</p>
                         
                         {log.details && Object.keys(log.details).length > 0 && (
-                          <div className="mt-2">
-                            <details className="text-sm">
-                              <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                                View Details
-                              </summary>
-                              <pre className="mt-2 p-2 bg-muted rounded-md overflow-x-auto text-xs">
-                                {JSON.stringify(log.details, null, 2)}
-                              </pre>
-                            </details>
-                          </div>
+                          <details className="mt-3 group/details">
+                            <summary className="text-sm text-violet-600 hover:text-violet-700 cursor-pointer font-medium select-none">
+                              View details
+                            </summary>
+                            <pre className="mt-2 p-3 bg-slate-50 rounded-lg overflow-x-auto text-xs text-slate-600 border border-slate-100">
+                              {JSON.stringify(log.details, null, 2)}
+                            </pre>
+                          </details>
                         )}
                       </div>
                     </div>
@@ -329,57 +436,6 @@ export const ActivityLogsPage: React.FC = () => {
           )}
         </CardContent>
       </Card>
-
-      {/* Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-linear-to-br from-slate-50 to-slate-100 border-slate-200">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-indigo-100 rounded-xl">
-                <Activity className="h-6 w-6 text-indigo-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Activities</p>
-                <p className="text-3xl font-bold text-slate-900">{totalCount}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-linear-to-br from-blue-50 to-blue-100 border-blue-200">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-blue-100 rounded-xl">
-                <Calendar className="h-6 w-6 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Showing</p>
-                <p className="text-3xl font-bold text-blue-600">{filteredLogs.length}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-linear-to-br from-emerald-50 to-emerald-100 border-emerald-200">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-emerald-100 rounded-xl">
-                <User className="h-6 w-6 text-emerald-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Active Users</p>
-                {logs.length > 0 ? (
-                  <p className="text-3xl font-bold text-emerald-600">
-                    {new Set(logs.map(l => l.user?.id)).size}
-                  </p>
-                ) : (
-                  <p className="text-3xl font-bold text-emerald-600">0</p>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 };

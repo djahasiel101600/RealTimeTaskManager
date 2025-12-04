@@ -186,7 +186,7 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['get'])
     def messages(self, request, pk=None):
-        """Get all messages for a chat room"""
+        """Get paginated messages for a chat room (newest first, reversed for display)"""
         room = self.get_object()
         
         # Check if user is participant
@@ -196,12 +196,35 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
         
+        # Get pagination parameters
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 30))
+        
+        # Get total count for pagination info
+        total_count = Message.objects.filter(room=room).count()
+        
+        # Order by newest first for pagination, then reverse for display
         messages = Message.objects.filter(room=room).select_related(
             'sender'
-        ).prefetch_related('attachments').order_by('timestamp')
+        ).prefetch_related('attachments').order_by('-timestamp')
         
-        serializer = MessageSerializer(messages, many=True)
-        return Response(serializer.data)
+        # Paginate
+        start = (page - 1) * page_size
+        end = start + page_size
+        messages = messages[start:end]
+        
+        # Reverse to get chronological order for display
+        messages = list(reversed(messages))
+        
+        serializer = MessageSerializer(messages, many=True, context={'request': request})
+        
+        return Response({
+            'results': serializer.data,
+            'count': total_count,
+            'page': page,
+            'page_size': page_size,
+            'has_more': end < total_count,
+        })
 
 
 class MessageViewSet(viewsets.ModelViewSet):
@@ -227,13 +250,121 @@ class MessageViewSet(viewsets.ModelViewSet):
         
         return queryset.select_related('sender', 'room').prefetch_related('attachments')
     
-    def perform_create(self, serializer):
-        message = serializer.save(sender=self.request.user)
+    def create(self, request, *args, **kwargs):
+        """Create a message with optional attachments"""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         
-        # Mark message as read for sender
+        # Save the message
+        message = serializer.save(sender=request.user, is_read=True)
+        
+        # Handle file attachments - check multiple naming conventions
+        # Frontend may send as attachments[0], attachments[1], etc. or just 'attachments'
+        files = request.FILES.getlist('attachments')
+        
+        # Also check for indexed attachments (attachments[0], attachments[1], etc.)
+        if not files:
+            for key in request.FILES:
+                if key.startswith('attachments['):
+                    files.append(request.FILES[key])
+        
+        for file in files:
+            MessageAttachment.objects.create(
+                message=message,
+                file=file,
+                file_name=file.name,
+                file_size=file.size,
+                mime_type=file.content_type or 'application/octet-stream'
+            )
+        
+        logger.info(f"User {request.user.id} sent message in room {message.room.id} with {len(files)} attachments")
+        
+        # Broadcast message via WebSocket to other participants
+        self._broadcast_message_via_websocket(message, request)
+        
+        # Return full message with attachments - pass request context for absolute URLs
+        output_serializer = MessageSerializer(message, context={'request': request})
+        return Response(output_serializer.data, status=status.HTTP_201_CREATED)
+    
+    def _broadcast_message_via_websocket(self, message, request):
+        """Broadcast a message to the chat room via WebSocket"""
+        from channels.layers import get_channel_layer
+        from asgiref.sync import async_to_sync
+        
+        channel_layer = get_channel_layer()
+        if not channel_layer:
+            logger.warning("Channel layer not available, skipping WebSocket broadcast")
+            return
+        
+        room = message.room
+        
+        # Determine the group name based on room type
+        if room.room_type == 'direct':
+            group_name = f'direct_{room.id}'
+        elif room.room_type == 'task':
+            group_name = f'task_{room.id}'
+        elif room.room_type == 'group':
+            group_name = f'group_{room.id}'
+        else:
+            group_name = f'room_{room.id}'
+        
+        # Helper to build absolute URL using BACKEND_URL setting
+        from django.conf import settings
+        def build_absolute_url(file_url):
+            backend_url = getattr(settings, 'BACKEND_URL', '')
+            if backend_url:
+                return f"{backend_url.rstrip('/')}{file_url}"
+            return request.build_absolute_uri(file_url)
+        
+        # Serialize attachments
+        attachments_data = []
+        for att in message.attachments.all():
+            att_data = {
+                'id': att.id,
+                'file': att.file.url if att.file else None,
+                'file_url': build_absolute_url(att.file.url) if att.file else None,
+                'file_name': att.file_name,
+                'file_size': att.file_size,
+                'mime_type': att.mime_type,
+            }
+            attachments_data.append(att_data)
+        
+        # Get sender avatar URL
+        sender = message.sender
+        avatar_url = None
+        if sender.avatar and hasattr(sender.avatar, 'url'):
+            avatar_url = build_absolute_url(sender.avatar.url)
+        
+        # Broadcast to room group
+        try:
+            async_to_sync(channel_layer.group_send)(
+                group_name,
+                {
+                    'type': 'chat_message',
+                    'message': {
+                        'id': message.id,
+                        'content': message.content,
+                        'sender': {
+                            'id': sender.id,
+                            'username': sender.username,
+                            'avatar': avatar_url,
+                        },
+                        'timestamp': message.timestamp.isoformat(),
+                        'room_type': room.room_type,
+                        'room_id': room.id,
+                        'attachments': attachments_data,
+                    }
+                }
+            )
+            logger.info(f"Broadcast message {message.id} to group {group_name}")
+        except Exception as e:
+            logger.error(f"Failed to broadcast message via WebSocket: {e}")
+    
+    def perform_create(self, serializer):
+        # This is kept for backward compatibility but create() is used instead
+        message = serializer.save(sender=self.request.user)
         message.is_read = True
         message.save()
-        
         logger.info(f"User {self.request.user.id} sent message in room {message.room.id}")
     
     @action(detail=True, methods=['post'])
@@ -295,5 +426,5 @@ class MessageViewSet(viewsets.ModelViewSet):
                 mime_type=file.content_type
             )
         
-        serializer = MessageSerializer(message)
+        serializer = MessageSerializer(message, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)

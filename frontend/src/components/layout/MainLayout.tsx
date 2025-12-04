@@ -53,27 +53,21 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   });
 
   const getInitials = () => {
-    if (user?.first_name && user?.last_name) {
-      return `${user.first_name[0]}${user.last_name[0]}`.toUpperCase();
-    }
     return user?.username?.charAt(0).toUpperCase() || '?';
   };
 
   const getDisplayName = () => {
-    if (user?.first_name && user?.last_name) {
-      return `${user.first_name} ${user.last_name}`;
-    }
     return user?.username || 'User';
   };
 
   const roleInfo = roleLabels[user?.role || ''] || roleLabels.clerk;
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-violet-50/50 via-white to-fuchsia-50/30">
+    <div className="min-h-screen bg-linear-to-br from-violet-50 via-white to-fuchsia-50">
       {/* Mobile sidebar overlay */}
       <div 
         className={cn(
-          "lg:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm transition-all duration-300",
+          "lg:hidden fixed inset-0 z-50 bg-black/60 transition-all duration-300",
           sidebarOpen ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"
         )}
         onClick={() => setSidebarOpen(false)}
@@ -81,7 +75,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
       {/* Mobile sidebar */}
       <div className={cn(
-        "lg:hidden fixed inset-y-0 left-0 z-50 w-72 bg-white/95 backdrop-blur-xl shadow-2xl transform transition-transform duration-300 ease-out",
+        "lg:hidden fixed inset-y-0 left-0 z-50 w-72 bg-white shadow-2xl transform transition-transform duration-300 ease-out",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="flex items-center justify-between h-16 px-5 border-b border-violet-100 bg-linear-to-r from-violet-600 to-fuchsia-600">
@@ -146,7 +140,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
       {/* Desktop sidebar */}
       <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
-        <div className="flex flex-col flex-1 bg-white/80 backdrop-blur-xl border-r border-violet-100/50 shadow-xl shadow-violet-500/5">
+        <div className="flex flex-col flex-1 bg-white border-r border-violet-100 shadow-xl shadow-violet-500/5">
           <div className="flex h-16 items-center px-5 border-b border-violet-100 bg-linear-to-r from-violet-600 via-violet-600 to-fuchsia-600">
             <div className="flex items-center gap-2.5">
               <div className="p-1.5 bg-white/20 rounded-lg">
@@ -213,7 +207,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       {/* Main content */}
       <div className="lg:pl-64">
         {/* Header */}
-        <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b border-violet-100/50 bg-white/80 backdrop-blur-xl px-4 lg:px-6 shadow-sm shadow-violet-500/5">
+        <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b border-violet-100 bg-white px-4 lg:px-6 shadow-sm shadow-violet-500/5">
           <Button
             variant="ghost"
             size="icon"

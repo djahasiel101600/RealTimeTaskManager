@@ -106,10 +106,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick }) => {
   const statusStyle = statusColors[task.status];
   const priorityStyle = priorityConfig[task.priority];
 
-  const getInitials = (firstName?: string, lastName?: string, username?: string) => {
-    if (firstName && lastName) {
-      return `${firstName[0]}${lastName[0]}`.toUpperCase();
-    }
+  const getInitials = (username?: string) => {
     return username?.charAt(0).toUpperCase() || '?';
   };
 
@@ -220,7 +217,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick }) => {
                   <Avatar key={assignee.id} className="h-7 w-7 border-2 border-white ring-1 ring-violet-100">
                     <AvatarImage src={assignee.avatar} />
                     <AvatarFallback className="text-xs bg-linear-to-br from-violet-500 to-fuchsia-500 text-white font-medium">
-                      {getInitials(assignee.first_name, assignee.last_name, assignee.username)}
+                      {getInitials(assignee.username)}
                     </AvatarFallback>
                   </Avatar>
                 ))}

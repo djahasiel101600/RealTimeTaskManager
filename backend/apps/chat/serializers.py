@@ -1,14 +1,31 @@
 from rest_framework import serializers
+from django.conf import settings
 from .models import ChatRoom, Message, MessageAttachment
 from apps.users.serializers import UserSerializer
 from apps.tasks.serializers import TaskSerializer
 
 
 class MessageAttachmentSerializer(serializers.ModelSerializer):
+    file_url = serializers.SerializerMethodField()
+    
     class Meta:
         model = MessageAttachment
-        fields = ['id', 'file', 'file_name', 'file_size', 'mime_type', 'uploaded_at']
+        fields = ['id', 'file', 'file_url', 'file_name', 'file_size', 'mime_type', 'uploaded_at']
         read_only_fields = ['file_name', 'file_size', 'mime_type', 'uploaded_at']
+    
+    def get_file_url(self, obj):
+        """Return the full URL for the file"""
+        if obj.file:
+            # Use BACKEND_URL from settings for consistent absolute URLs
+            backend_url = getattr(settings, 'BACKEND_URL', '')
+            if backend_url:
+                return f"{backend_url.rstrip('/')}{obj.file.url}"
+            # Fallback to request-based URL building
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.file.url)
+            return obj.file.url
+        return None
 
 
 class MessageSerializer(serializers.ModelSerializer):
@@ -22,6 +39,8 @@ class MessageSerializer(serializers.ModelSerializer):
 
 
 class MessageCreateSerializer(serializers.ModelSerializer):
+    content = serializers.CharField(required=False, allow_blank=True, default='')
+    
     class Meta:
         model = Message
         fields = ['room', 'content']

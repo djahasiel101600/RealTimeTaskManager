@@ -190,8 +190,8 @@ export function TaskDetailPage() {
   };
 
   // Get user initials
-  const getInitials = (firstName?: string, lastName?: string) => {
-    return `${firstName?.[0] || ''}${lastName?.[0] || ''}`.toUpperCase() || '?';
+  const getInitials = (username?: string) => {
+    return username?.charAt(0).toUpperCase() || '?';
   };
 
   // Loading state
@@ -439,13 +439,13 @@ export function TaskDetailPage() {
                         <div key={comment.id} className="flex gap-3">
                           <Avatar className="h-8 w-8 shrink-0 ring-2 ring-violet-100">
                             <AvatarFallback className="text-xs bg-linear-to-br from-violet-500 to-fuchsia-500 text-white font-medium">
-                              {getInitials(comment.user.first_name, comment.user.last_name)}
+                              {getInitials(comment.user.username)}
                             </AvatarFallback>
                           </Avatar>
                           <div className="flex-1 bg-linear-to-r from-slate-50 to-white p-3 rounded-xl border border-slate-100">
                             <div className="flex items-center gap-2">
                               <span className="font-medium text-sm text-slate-900">
-                                {comment.user.first_name} {comment.user.last_name}
+                                {comment.user.username}
                               </span>
                               <span className="text-xs text-slate-500">
                                 {format(new Date(comment.created_at), 'MMM d, h:mm a')}
@@ -463,7 +463,7 @@ export function TaskDetailPage() {
                 <div className="flex gap-3 pt-4 border-t border-slate-100">
                   <Avatar className="h-8 w-8 shrink-0 ring-2 ring-violet-100">
                     <AvatarFallback className="text-xs bg-linear-to-br from-violet-500 to-fuchsia-500 text-white font-medium">
-                      {getInitials(user?.first_name, user?.last_name)}
+                      {getInitials(user?.username)}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 flex gap-2">
@@ -555,7 +555,7 @@ export function TaskDetailPage() {
                   <div>
                     <p className="text-xs text-slate-500">Created by</p>
                     <p className="text-sm font-medium text-slate-900">
-                      {task.created_by?.first_name} {task.created_by?.last_name}
+                      {task.created_by?.username}
                     </p>
                   </div>
                 </div>
@@ -571,7 +571,7 @@ export function TaskDetailPage() {
                       <div className="flex flex-wrap gap-1">
                         {task.assigned_to.map((assignee) => (
                           <Badge key={assignee.id} className="text-xs bg-linear-to-r from-violet-100 to-fuchsia-100 text-violet-700 border-0">
-                            {assignee.first_name} {assignee.last_name}
+                            {assignee.username}
                           </Badge>
                         ))}
                       </div>

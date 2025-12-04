@@ -41,11 +41,24 @@ class User(AbstractUser):
         return self.role in [self.Role.SUPERVISOR, self.Role.ATL]
     
     def can_view_task(self, task):
+        """Check if user can view/access a task."""
+        # Supervisors can view all tasks
         if self.role == self.Role.SUPERVISOR:
             return True
+        
+        # Task creator can always view their own task
+        if task.created_by_id == self.id:
+            return True
+        
+        # Users assigned to the task can view it
+        if task.assigned_to.filter(id=self.id).exists():
+            return True
+        
+        # ATL can view tasks assigned to Clerks/ATMs (team oversight)
         if self.role == self.Role.ATL:
             return task.assigned_to.filter(role__in=[self.Role.CLERK, self.Role.ATM]).exists()
-        return task.assigned_to.filter(id=self.id).exists()
+        
+        return False
     
     def generate_verification_token(self):
         """Generate a new email verification token"""

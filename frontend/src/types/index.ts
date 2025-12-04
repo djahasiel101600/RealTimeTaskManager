@@ -4,13 +4,13 @@ export interface User {
   id: number;
   username: string;
   email: string;
-  first_name?: string;
-  last_name?: string;
   role: UserRole;
   avatar?: string;
   phone?: string;
   is_online: boolean;
   last_seen?: string;
+  date_joined?: string;
+  last_login?: string;
 }
 
 export type Priority = 'low' | 'normal' | 'high' | 'urgent';
@@ -60,13 +60,15 @@ export interface ChatRoom {
   task?: Task;
   last_message?: Message;
   unread_count: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Message {
   id: number;
   content: string;
   sender: User;
-  room: ChatRoom;
+  room: number | ChatRoom;  // Can be room ID (number) or full ChatRoom object
   attachments: MessageAttachment[];
   timestamp: string;
   is_read: boolean;
@@ -75,9 +77,11 @@ export interface Message {
 export interface MessageAttachment {
   id: number;
   file: string;
+  file_url?: string;  // Full URL for accessing the file
   file_name: string;
   file_size: number;
   mime_type: string;
+  uploaded_at?: string;
 }
 
 export interface ActivityLog {
