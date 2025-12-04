@@ -332,7 +332,7 @@ export const ActivityLogsPage: React.FC = () => {
 
       {/* Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-gradient-to-br from-slate-50 to-slate-100 border-slate-200">
+        <Card className="bg-linear-to-br from-slate-50 to-slate-100 border-slate-200">
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-indigo-100 rounded-xl">
@@ -346,7 +346,7 @@ export const ActivityLogsPage: React.FC = () => {
           </CardContent>
         </Card>
         
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+        <Card className="bg-linear-to-br from-blue-50 to-blue-100 border-blue-200">
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-blue-100 rounded-xl">
@@ -360,7 +360,7 @@ export const ActivityLogsPage: React.FC = () => {
           </CardContent>
         </Card>
         
-        <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200">
+        <Card className="bg-linear-to-br from-emerald-50 to-emerald-100 border-emerald-200">
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-emerald-100 rounded-xl">

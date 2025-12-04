@@ -69,7 +69,7 @@ export const RegisterPage: React.FC = () => {
       <Card className="w-full border-violet-100/50 shadow-xl shadow-violet-500/5 bg-white/80 backdrop-blur-sm">
         <CardContent className="pt-10 pb-10">
           <div className="text-center space-y-5">
-            <div className="mx-auto w-20 h-20 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/30">
+            <div className="mx-auto w-20 h-20 bg-linear-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/30">
               <CheckCircle className="h-10 w-10 text-white" />
             </div>
             <div>
@@ -80,7 +80,7 @@ export const RegisterPage: React.FC = () => {
             </div>
             <div className="flex justify-center">
               <div className="h-1 w-32 bg-violet-100 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-500 animate-[progress_2s_ease-in-out]" 
+                <div className="h-full bg-linear-to-r from-violet-500 to-fuchsia-500 animate-[progress_2s_ease-in-out]" 
                   style={{ animation: 'progress 2s ease-in-out', width: '100%' }} />
               </div>
             </div>
@@ -220,7 +220,7 @@ export const RegisterPage: React.FC = () => {
           
           <Button
             type="submit"
-            className="w-full h-11 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 shadow-lg shadow-violet-500/25 transition-all duration-300 text-base font-medium"
+            className="w-full h-11 bg-linear-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 shadow-lg shadow-violet-500/25 transition-all duration-300 text-base font-medium"
             disabled={isLoading}
           >
             {isLoading ? (

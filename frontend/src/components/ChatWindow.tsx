@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { Send, Paperclip, X, Loader2, MessageSquare, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useChatStore } from '@/stores/chat.store';
 import { useWebSocket } from '@/hooks/useWebSocket';
@@ -205,12 +204,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ roomId, roomType }) => {
   }, [messages, pendingMessages, user, roomId]);
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-b from-white to-slate-50/50">
-      <ScrollArea className="flex-1 p-4">
+    <div className="flex flex-col h-full overflow-hidden bg-linear-to-b from-white to-slate-50/50">
+      <div className="flex-1 min-h-0 overflow-y-auto p-4">
         {isLoading ? (
           <div className="flex justify-center items-center h-full py-8">
             <div className="flex flex-col items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center animate-pulse">
+              <div className="w-12 h-12 rounded-2xl bg-linear-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center animate-pulse">
                 <Loader2 className="h-6 w-6 animate-spin text-white" />
               </div>
               <p className="text-sm text-slate-500">Loading messages...</p>
@@ -218,7 +217,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ roomId, roomType }) => {
           </div>
         ) : displayMessages.length === 0 && pendingMessages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full py-8 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-100 to-fuchsia-100 flex items-center justify-center mb-4">
+            <div className="w-16 h-16 rounded-2xl bg-linear-to-br from-violet-100 to-fuchsia-100 flex items-center justify-center mb-4">
               <MessageSquare className="h-8 w-8 text-violet-500" />
             </div>
             <p className="font-medium text-slate-700">No messages yet</p>
@@ -239,15 +238,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ roomId, roomType }) => {
                   )}
                 >
                   <Avatar className={cn(
-                    "h-8 w-8 flex-shrink-0 ring-2",
+                    "h-8 w-8 shrink-0 ring-2",
                     isOwnMessage ? "ring-violet-200" : "ring-slate-100"
                   )}>
                     <AvatarImage src={msg.sender.avatar} />
                     <AvatarFallback className={cn(
                       "font-medium text-white",
                       isOwnMessage 
-                        ? "bg-gradient-to-br from-violet-500 to-fuchsia-500" 
-                        : "bg-gradient-to-br from-slate-400 to-slate-500"
+                        ? "bg-linear-to-br from-violet-500 to-fuchsia-500" 
+                        : "bg-linear-to-br from-slate-400 to-slate-500"
                     )}>
                       {msg.sender.username?.charAt(0).toUpperCase()}
                     </AvatarFallback>
@@ -256,7 +255,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ roomId, roomType }) => {
                     className={cn(
                       "max-w-[70%] rounded-2xl p-3 shadow-sm",
                       isOwnMessage
-                        ? "bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white rounded-tr-md"
+                        ? "bg-linear-to-r from-violet-600 to-fuchsia-600 text-white rounded-tr-md"
                         : "bg-white border border-slate-100 rounded-tl-md"
                     )}
                   >
@@ -277,7 +276,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ roomId, roomType }) => {
                         {format(new Date(msg.timestamp), 'HH:mm')}
                       </span>
                     </div>
-                    <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                    <p className="text-sm whitespace-pre-wrap wrap-break-words">{msg.content}</p>
                     {msg.attachments && msg.attachments.length > 0 && (
                       <div className="mt-2 space-y-2">
                         {msg.attachments.map((attachment: MessageAttachment) => (
@@ -287,7 +286,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ roomId, roomType }) => {
                               "flex items-center gap-2 p-2 rounded-lg",
                               isOwnMessage 
                                 ? "bg-white/10" 
-                                : "bg-gradient-to-r from-slate-50 to-violet-50"
+                                : "bg-linear-to-r from-slate-50 to-violet-50"
                             )}
                           >
                             <Paperclip className="h-4 w-4" />
@@ -304,7 +303,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ roomId, roomType }) => {
             })}
             {typingUsersList.length > 0 && (
               <div className="flex items-center gap-3 px-2">
-                <div className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-slate-100 to-violet-50 rounded-full">
+                <div className="flex items-center gap-1.5 px-4 py-2 bg-linear-to-r from-slate-100 to-violet-50 rounded-full">
                   <div className="flex gap-1">
                     <div className="h-2 w-2 bg-violet-400 rounded-full animate-bounce" />
                     <div className="h-2 w-2 bg-violet-500 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} />
@@ -321,7 +320,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ roomId, roomType }) => {
             <div ref={messagesEndRef} />
           </div>
         )}
-      </ScrollArea>
+      </div>
 
       {/* Connection status warning */}
       {!isChatConnected && (
@@ -352,7 +351,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ roomId, roomType }) => {
             {attachments.map((file, index) => (
               <div
                 key={index}
-                className="flex items-center gap-2 bg-gradient-to-r from-violet-50 to-fuchsia-50 border border-violet-100 px-3 py-2 rounded-lg"
+                className="flex items-center gap-2 bg-linear-to-r from-violet-50 to-fuchsia-50 border border-violet-100 px-3 py-2 rounded-lg"
               >
                 <Paperclip className="h-4 w-4 text-violet-500" />
                 <span className="text-sm truncate max-w-[200px] text-slate-700">
@@ -404,7 +403,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ roomId, roomType }) => {
             onClick={handleSendMessage} 
             disabled={(!message.trim() && attachments.length === 0) || isSending}
             size="icon"
-            className="bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white shadow-lg shadow-violet-500/25"
+            className="bg-linear-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white shadow-lg shadow-violet-500/25"
           >
             {isSending ? (
               <Loader2 className="h-5 w-5 animate-spin" />

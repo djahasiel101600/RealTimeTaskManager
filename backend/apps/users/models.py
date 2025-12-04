@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+import uuid
 
 
 class User(AbstractUser):
@@ -23,6 +24,11 @@ class User(AbstractUser):
     is_online = models.BooleanField(default=False)
     last_seen = models.DateTimeField(null=True, blank=True)
     
+    # Email verification
+    email_verified = models.BooleanField(default=False)
+    email_verification_token = models.UUIDField(default=uuid.uuid4, null=True, blank=True)
+    email_verification_sent_at = models.DateTimeField(null=True, blank=True)
+    
     # Use email as the login field instead of username
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']
@@ -40,6 +46,13 @@ class User(AbstractUser):
         if self.role == self.Role.ATL:
             return task.assigned_to.filter(role__in=[self.Role.CLERK, self.Role.ATM]).exists()
         return task.assigned_to.filter(id=self.id).exists()
+    
+    def generate_verification_token(self):
+        """Generate a new email verification token"""
+        self.email_verification_token = uuid.uuid4()
+        self.email_verification_sent_at = None
+        self.save(update_fields=['email_verification_token', 'email_verification_sent_at'])
+        return self.email_verification_token
 
 
 # Keep Role as module-level for backward compatibility

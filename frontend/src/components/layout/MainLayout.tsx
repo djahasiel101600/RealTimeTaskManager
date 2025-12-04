@@ -69,7 +69,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const roleInfo = roleLabels[user?.role || ''] || roleLabels.clerk;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-violet-50/50 via-white to-fuchsia-50/30">
+    <div className="min-h-screen bg-linear-to-br from-violet-50/50 via-white to-fuchsia-50/30">
       {/* Mobile sidebar overlay */}
       <div 
         className={cn(
@@ -84,7 +84,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         "lg:hidden fixed inset-y-0 left-0 z-50 w-72 bg-white/95 backdrop-blur-xl shadow-2xl transform transition-transform duration-300 ease-out",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        <div className="flex items-center justify-between h-16 px-5 border-b border-violet-100 bg-gradient-to-r from-violet-600 to-fuchsia-600">
+        <div className="flex items-center justify-between h-16 px-5 border-b border-violet-100 bg-linear-to-r from-violet-600 to-fuchsia-600">
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 bg-white/20 rounded-lg">
               <Sparkles className="h-5 w-5 text-white" />
@@ -106,7 +106,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200",
                   isActive
-                    ? "bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-lg shadow-violet-500/25"
+                    ? "bg-linear-to-r from-violet-500 to-fuchsia-500 text-white shadow-lg shadow-violet-500/25"
                     : "text-slate-600 hover:bg-violet-50 hover:text-violet-700"
                 )}
                 onClick={() => setSidebarOpen(false)}
@@ -117,11 +117,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             );
           })}
         </nav>
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-violet-100 bg-gradient-to-r from-violet-50/50 to-fuchsia-50/50">
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-violet-100 bg-linear-to-r from-violet-50/50 to-fuchsia-50/50">
           <div className="flex items-center gap-3">
             <Avatar className="h-11 w-11 ring-2 ring-violet-200 ring-offset-2">
               <AvatarImage src={user?.avatar} />
-              <AvatarFallback className="bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white font-semibold">
+              <AvatarFallback className="bg-linear-to-br from-violet-500 to-fuchsia-500 text-white font-semibold">
                 {getInitials()}
               </AvatarFallback>
             </Avatar>
@@ -147,7 +147,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       {/* Desktop sidebar */}
       <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
         <div className="flex flex-col flex-1 bg-white/80 backdrop-blur-xl border-r border-violet-100/50 shadow-xl shadow-violet-500/5">
-          <div className="flex h-16 items-center px-5 border-b border-violet-100 bg-gradient-to-r from-violet-600 via-violet-600 to-fuchsia-600">
+          <div className="flex h-16 items-center px-5 border-b border-violet-100 bg-linear-to-r from-violet-600 via-violet-600 to-fuchsia-600">
             <div className="flex items-center gap-2.5">
               <div className="p-1.5 bg-white/20 rounded-lg">
                 <Sparkles className="h-5 w-5 text-white" />
@@ -166,7 +166,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   className={cn(
                     "group flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-200",
                     isActive
-                      ? "bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-lg shadow-violet-500/25"
+                      ? "bg-linear-to-r from-violet-500 to-fuchsia-500 text-white shadow-lg shadow-violet-500/25"
                       : "text-slate-600 hover:bg-violet-50 hover:text-violet-700"
                   )}
                 >
@@ -182,11 +182,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               );
             })}
           </nav>
-          <div className="p-4 border-t border-violet-100 bg-gradient-to-r from-violet-50/80 to-fuchsia-50/80">
+          <div className="p-4 border-t border-violet-100 bg-linear-to-r from-violet-50/80 to-fuchsia-50/80">
             <div className="flex items-center gap-3">
               <Avatar className="h-11 w-11 ring-2 ring-violet-200 ring-offset-2">
                 <AvatarImage src={user?.avatar} />
-                <AvatarFallback className="bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white font-semibold">
+                <AvatarFallback className="bg-linear-to-br from-violet-500 to-fuchsia-500 text-white font-semibold">
                   {getInitials()}
                 </AvatarFallback>
               </Avatar>
@@ -238,7 +238,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <div className="hidden md:flex items-center gap-3 pl-3 ml-2 border-l border-violet-100">
               <Avatar className="h-9 w-9 ring-2 ring-violet-100">
                 <AvatarImage src={user?.avatar} />
-                <AvatarFallback className="bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white text-sm font-medium">
+                <AvatarFallback className="bg-linear-to-br from-violet-500 to-fuchsia-500 text-white text-sm font-medium">
                   {getInitials()}
                 </AvatarFallback>
               </Avatar>

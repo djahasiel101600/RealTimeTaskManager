@@ -201,13 +201,13 @@ export const CreateChatDialog: React.FC<CreateChatDialogProps> = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg p-0 gap-0 overflow-hidden">
-        <DialogHeader className="p-6 pb-4 bg-gradient-to-r from-violet-50 to-fuchsia-50 border-b border-violet-100">
+        <DialogHeader className="p-6 pb-4 bg-linear-to-r from-violet-50 to-fuchsia-50 border-b border-violet-100">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/25">
+            <div className="w-10 h-10 rounded-xl bg-linear-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/25">
               <MessageSquare className="h-5 w-5 text-white" />
             </div>
             <div>
-              <DialogTitle className="text-xl font-semibold bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent">
+              <DialogTitle className="text-xl font-semibold bg-linear-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent">
                 New Conversation
               </DialogTitle>
               <p className="text-sm text-slate-500 mt-0.5">
@@ -223,14 +223,14 @@ export const CreateChatDialog: React.FC<CreateChatDialogProps> = ({
             <TabsList className="w-full bg-slate-100/80 p-1 mb-4">
               <TabsTrigger 
                 value="direct" 
-                className="flex-1 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-fuchsia-600 data-[state=active]:text-white data-[state=active]:shadow-md"
+                className="flex-1 data-[state=active]:bg-linear-to-r data-[state=active]:from-violet-600 data-[state=active]:to-fuchsia-600 data-[state=active]:text-white data-[state=active]:shadow-md"
               >
                 <UserIcon className="h-4 w-4 mr-2" />
                 Direct Message
               </TabsTrigger>
               <TabsTrigger 
                 value="task"
-                className="flex-1 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-fuchsia-600 data-[state=active]:text-white data-[state=active]:shadow-md"
+                className="flex-1 data-[state=active]:bg-linear-to-r data-[state=active]:from-violet-600 data-[state=active]:to-fuchsia-600 data-[state=active]:text-white data-[state=active]:shadow-md"
               >
                 <Hash className="h-4 w-4 mr-2" />
                 Task Chat
@@ -257,7 +257,7 @@ export const CreateChatDialog: React.FC<CreateChatDialogProps> = ({
                   </div>
                 ) : filteredUsers.length === 0 ? (
                   <div className="text-center py-12">
-                    <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-50 flex items-center justify-center">
+                    <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-linear-to-br from-slate-100 to-slate-50 flex items-center justify-center">
                       <Users className="h-7 w-7 text-slate-300" />
                     </div>
                     <p className="text-slate-500 font-medium">No users found</p>
@@ -276,20 +276,20 @@ export const CreateChatDialog: React.FC<CreateChatDialogProps> = ({
                           disabled={isCreating}
                           className={cn(
                             "w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 text-left",
-                            "hover:bg-gradient-to-r hover:from-violet-50 hover:to-fuchsia-50",
-                            isSelected && "bg-gradient-to-r from-violet-100 to-fuchsia-100",
+                            "hover:bg-linear-to-r hover:from-violet-50 hover:to-fuchsia-50",
+                            isSelected && "bg-linear-to-r from-violet-100 to-fuchsia-100",
                             isCreating && !isSelected && "opacity-50 cursor-not-allowed"
                           )}
                         >
                           <div className="relative">
                             <Avatar className="h-10 w-10 ring-2 ring-violet-100">
                               <AvatarImage src={user.avatar} />
-                              <AvatarFallback className="bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white font-medium text-sm">
+                              <AvatarFallback className="bg-linear-to-br from-violet-500 to-fuchsia-500 text-white font-medium text-sm">
                                 {getInitials(user)}
                               </AvatarFallback>
                             </Avatar>
                             {user.is_online && (
-                              <div className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 border-2 border-white" />
+                              <div className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-linear-to-br from-emerald-400 to-emerald-600 border-2 border-white" />
                             )}
                           </div>
                           
@@ -332,7 +332,7 @@ export const CreateChatDialog: React.FC<CreateChatDialogProps> = ({
                   </div>
                 ) : filteredTasks.length === 0 ? (
                   <div className="text-center py-12">
-                    <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-50 flex items-center justify-center">
+                    <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-linear-to-br from-slate-100 to-slate-50 flex items-center justify-center">
                       <Hash className="h-7 w-7 text-slate-300" />
                     </div>
                     <p className="text-slate-500 font-medium">No tasks found</p>
@@ -351,12 +351,12 @@ export const CreateChatDialog: React.FC<CreateChatDialogProps> = ({
                           disabled={isCreating}
                           className={cn(
                             "w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 text-left",
-                            "hover:bg-gradient-to-r hover:from-violet-50 hover:to-fuchsia-50",
-                            isSelected && "bg-gradient-to-r from-violet-100 to-fuchsia-100",
+                            "hover:bg-linear-to-r hover:from-violet-50 hover:to-fuchsia-50",
+                            isSelected && "bg-linear-to-r from-violet-100 to-fuchsia-100",
                             isCreating && !isSelected && "opacity-50 cursor-not-allowed"
                           )}
                         >
-                          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-fuchsia-100 to-violet-100 flex items-center justify-center">
+                          <div className="h-10 w-10 rounded-xl bg-linear-to-br from-fuchsia-100 to-violet-100 flex items-center justify-center">
                             <Hash className="h-5 w-5 text-fuchsia-600" />
                           </div>
                           
@@ -375,7 +375,7 @@ export const CreateChatDialog: React.FC<CreateChatDialogProps> = ({
                               <Badge 
                                 variant="secondary" 
                                 className={cn(
-                                  "text-xs border-0 text-white bg-gradient-to-r",
+                                  "text-xs border-0 text-white bg-linear-to-r",
                                   getPriorityColor(task.priority)
                                 )}
                               >
@@ -405,7 +405,7 @@ export const CreateChatDialog: React.FC<CreateChatDialogProps> = ({
         </div>
 
         {/* Footer hint */}
-        <div className="px-6 py-4 bg-gradient-to-r from-slate-50 to-violet-50/50 border-t border-slate-100">
+        <div className="px-6 py-4 bg-linear-to-r from-slate-50 to-violet-50/50 border-t border-slate-100">
           <p className="text-xs text-slate-500 text-center">
             {activeTab === 'direct' 
               ? 'Click on a user to start a private conversation'

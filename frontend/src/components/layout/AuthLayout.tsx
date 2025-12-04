@@ -19,9 +19,9 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
   const location = useLocation();
   
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-violet-50 via-white to-fuchsia-50">
+    <div className="min-h-screen flex bg-linear-to-br from-violet-50 via-white to-fuchsia-50">
       {/* Left side - Brand/Info */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-violet-600 via-violet-700 to-fuchsia-700 flex-col justify-between p-12 text-white relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 bg-linear-to-br from-violet-600 via-violet-700 to-fuchsia-700 flex-col justify-between p-12 text-white relative overflow-hidden">
         {/* Animated background decoration */}
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -top-40 -left-40 w-80 h-80 bg-white/10 rounded-full blur-3xl animate-pulse" />
@@ -103,10 +103,10 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
           {/* Mobile header */}
           <div className="lg:hidden flex flex-col items-center mb-10">
             <div className="flex items-center gap-2.5 mb-5">
-              <div className="p-2.5 bg-gradient-to-br from-violet-500 to-fuchsia-500 rounded-xl shadow-lg shadow-violet-500/30">
+              <div className="p-2.5 bg-linear-to-br from-violet-500 to-fuchsia-500 rounded-xl shadow-lg shadow-violet-500/30">
                 <Sparkles className="h-7 w-7 text-white" />
               </div>
-              <span className="text-2xl font-bold bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent">TaskFlow</span>
+              <span className="text-2xl font-bold bg-linear-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent">TaskFlow</span>
             </div>
             <p className="text-center text-slate-500">
               {location.pathname === '/login' 

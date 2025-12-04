@@ -124,10 +124,10 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick }) => {
       {/* Priority indicator bar */}
       <div className={cn(
         "absolute top-0 left-0 right-0 h-1",
-        task.priority === 'urgent' ? 'bg-gradient-to-r from-rose-500 to-pink-500' :
-        task.priority === 'high' ? 'bg-gradient-to-r from-orange-500 to-amber-500' :
-        task.priority === 'normal' ? 'bg-gradient-to-r from-violet-500 to-fuchsia-500' :
-        'bg-gradient-to-r from-slate-300 to-slate-400'
+        task.priority === 'urgent' ? 'bg-linear-to-r from-rose-500 to-pink-500' :
+        task.priority === 'high' ? 'bg-linear-to-r from-orange-500 to-amber-500' :
+        task.priority === 'normal' ? 'bg-linear-to-r from-violet-500 to-fuchsia-500' :
+        'bg-linear-to-r from-slate-300 to-slate-400'
       )} />
       
       <CardHeader className="pb-3 pt-5">
@@ -219,7 +219,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick }) => {
                 {task.assigned_to.slice(0, 4).map((assignee) => (
                   <Avatar key={assignee.id} className="h-7 w-7 border-2 border-white ring-1 ring-violet-100">
                     <AvatarImage src={assignee.avatar} />
-                    <AvatarFallback className="text-xs bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white font-medium">
+                    <AvatarFallback className="text-xs bg-linear-to-br from-violet-500 to-fuchsia-500 text-white font-medium">
                       {getInitials(assignee.first_name, assignee.last_name, assignee.username)}
                     </AvatarFallback>
                   </Avatar>

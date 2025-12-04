@@ -197,9 +197,9 @@ export function TaskDetailPage() {
   // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-violet-50/30 to-fuchsia-50/20 flex items-center justify-center">
+      <div className="min-h-screen bg-linear-to-br from-slate-50 via-violet-50/30 to-fuchsia-50/20 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 flex items-center justify-center animate-pulse">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-linear-to-br from-violet-600 to-fuchsia-600 flex items-center justify-center animate-pulse">
             <Loader2 className="h-8 w-8 animate-spin text-white" />
           </div>
           <p className="text-slate-600 font-medium">Loading task details...</p>
@@ -211,17 +211,17 @@ export function TaskDetailPage() {
   // Error state
   if (error || !task) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-violet-50/30 to-fuchsia-50/20 flex items-center justify-center">
+      <div className="min-h-screen bg-linear-to-br from-slate-50 via-violet-50/30 to-fuchsia-50/20 flex items-center justify-center">
         <Card className="max-w-md w-full mx-4 border-0 shadow-xl shadow-slate-200/50">
           <CardContent className="pt-6 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-rose-500 to-red-500 flex items-center justify-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-linear-to-br from-rose-500 to-red-500 flex items-center justify-center">
               <AlertCircle className="h-8 w-8 text-white" />
             </div>
             <h2 className="text-xl font-semibold text-slate-900 mb-2">Task Not Found</h2>
             <p className="text-slate-600 mb-6">{error || "The task you're looking for doesn't exist."}</p>
             <Button 
               onClick={() => navigate('/tasks')}
-              className="bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 shadow-lg shadow-violet-500/25"
+              className="bg-linear-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 shadow-lg shadow-violet-500/25"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Tasks
@@ -235,7 +235,7 @@ export function TaskDetailPage() {
   const priority = priorityConfig[task.priority] || priorityConfig.normal;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-violet-50/30 to-fuchsia-50/20">
+    <div className="min-h-screen bg-linear-to-br from-slate-50 via-violet-50/30 to-fuchsia-50/20">
       {/* Header */}
       <div className="bg-white/80 backdrop-blur-xl border-b border-slate-200/50 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -250,7 +250,7 @@ export function TaskDetailPage() {
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back
               </Button>
-              <div className="h-6 w-px bg-gradient-to-b from-violet-200 to-fuchsia-200" />
+              <div className="h-6 w-px bg-linear-to-b from-violet-200 to-fuchsia-200" />
               <h1 className="text-xl font-semibold text-slate-900 truncate max-w-md">
                 {task.title}
               </h1>
@@ -258,10 +258,10 @@ export function TaskDetailPage() {
             <div className="flex items-center gap-3">
               <Badge className={cn(
                 "px-3 py-1 font-medium border-0",
-                task.priority === 'urgent' && "bg-gradient-to-r from-rose-500 to-red-500 text-white",
-                task.priority === 'high' && "bg-gradient-to-r from-orange-500 to-amber-500 text-white",
-                task.priority === 'normal' && "bg-gradient-to-r from-blue-500 to-indigo-500 text-white",
-                task.priority === 'low' && "bg-gradient-to-r from-slate-400 to-slate-500 text-white"
+                task.priority === 'urgent' && "bg-linear-to-r from-rose-500 to-red-500 text-white",
+                task.priority === 'high' && "bg-linear-to-r from-orange-500 to-amber-500 text-white",
+                task.priority === 'normal' && "bg-linear-to-r from-blue-500 to-indigo-500 text-white",
+                task.priority === 'low' && "bg-linear-to-r from-slate-400 to-slate-500 text-white"
               )}>
                 {priority.label} Priority
               </Badge>
@@ -286,10 +286,10 @@ export function TaskDetailPage() {
           <div className="lg:col-span-2 space-y-6">
             {/* Description */}
             <Card className="border-0 shadow-lg shadow-slate-200/50 overflow-hidden">
-              <div className="h-1 bg-gradient-to-r from-violet-500 to-fuchsia-500" />
+              <div className="h-1 bg-linear-to-r from-violet-500 to-fuchsia-500" />
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-100 to-fuchsia-100 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-lg bg-linear-to-br from-violet-100 to-fuchsia-100 flex items-center justify-center">
                     <FileText className="h-4 w-4 text-violet-600" />
                   </div>
                   Description
@@ -304,16 +304,16 @@ export function TaskDetailPage() {
 
             {/* Attachments */}
             <Card className="border-0 shadow-lg shadow-slate-200/50 overflow-hidden">
-              <div className="h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
+              <div className="h-1 bg-linear-to-r from-emerald-500 to-teal-500" />
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-lg bg-linear-to-br from-emerald-100 to-teal-100 flex items-center justify-center">
                       <Upload className="h-4 w-4 text-emerald-600" />
                     </div>
                     Attachments
                     {attachments.length > 0 && (
-                      <Badge className="ml-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white border-0">
+                      <Badge className="ml-2 bg-linear-to-r from-emerald-500 to-teal-500 text-white border-0">
                         {attachments.length}
                       </Badge>
                     )}
@@ -351,7 +351,7 @@ export function TaskDetailPage() {
               <CardContent>
                 {attachments.length === 0 ? (
                   <div className="text-center py-8 text-slate-500">
-                    <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-50 flex items-center justify-center">
+                    <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-linear-to-br from-slate-100 to-slate-50 flex items-center justify-center">
                       <Upload className="h-7 w-7 text-slate-300" />
                     </div>
                     <p className="font-medium">No attachments yet</p>
@@ -364,10 +364,10 @@ export function TaskDetailPage() {
                     {attachments.map((attachment) => (
                       <div
                         key={attachment.id}
-                        className="flex items-center justify-between p-3 bg-gradient-to-r from-slate-50 to-white rounded-xl hover:from-emerald-50/50 hover:to-white transition-all duration-200 border border-slate-100"
+                        className="flex items-center justify-between p-3 bg-linear-to-r from-slate-50 to-white rounded-xl hover:from-emerald-50/50 hover:to-white transition-all duration-200 border border-slate-100"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-100 to-fuchsia-100 flex items-center justify-center">
+                          <div className="w-10 h-10 rounded-lg bg-linear-to-br from-violet-100 to-fuchsia-100 flex items-center justify-center">
                             <FileText className="h-5 w-5 text-violet-600" />
                           </div>
                           <div>
@@ -406,15 +406,15 @@ export function TaskDetailPage() {
 
             {/* Comments */}
             <Card className="border-0 shadow-lg shadow-slate-200/50 overflow-hidden">
-              <div className="h-1 bg-gradient-to-r from-blue-500 to-indigo-500" />
+              <div className="h-1 bg-linear-to-r from-blue-500 to-indigo-500" />
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-lg bg-linear-to-br from-blue-100 to-indigo-100 flex items-center justify-center">
                     <MessageSquare className="h-4 w-4 text-blue-600" />
                   </div>
                   Comments
                   {comments.length > 0 && (
-                    <Badge className="ml-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white border-0">
+                    <Badge className="ml-2 bg-linear-to-r from-blue-500 to-indigo-500 text-white border-0">
                       {comments.length}
                     </Badge>
                   )}
@@ -424,7 +424,7 @@ export function TaskDetailPage() {
                 {/* Comment List */}
                 {comments.length === 0 ? (
                   <div className="text-center py-6 text-slate-500">
-                    <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-50 flex items-center justify-center">
+                    <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-linear-to-br from-slate-100 to-slate-50 flex items-center justify-center">
                       <MessageSquare className="h-7 w-7 text-slate-300" />
                     </div>
                     <p className="font-medium">No comments yet</p>
@@ -438,11 +438,11 @@ export function TaskDetailPage() {
                       {comments.map((comment) => (
                         <div key={comment.id} className="flex gap-3">
                           <Avatar className="h-8 w-8 shrink-0 ring-2 ring-violet-100">
-                            <AvatarFallback className="text-xs bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white font-medium">
+                            <AvatarFallback className="text-xs bg-linear-to-br from-violet-500 to-fuchsia-500 text-white font-medium">
                               {getInitials(comment.user.first_name, comment.user.last_name)}
                             </AvatarFallback>
                           </Avatar>
-                          <div className="flex-1 bg-gradient-to-r from-slate-50 to-white p-3 rounded-xl border border-slate-100">
+                          <div className="flex-1 bg-linear-to-r from-slate-50 to-white p-3 rounded-xl border border-slate-100">
                             <div className="flex items-center gap-2">
                               <span className="font-medium text-sm text-slate-900">
                                 {comment.user.first_name} {comment.user.last_name}
@@ -462,7 +462,7 @@ export function TaskDetailPage() {
                 {/* Add Comment */}
                 <div className="flex gap-3 pt-4 border-t border-slate-100">
                   <Avatar className="h-8 w-8 shrink-0 ring-2 ring-violet-100">
-                    <AvatarFallback className="text-xs bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white font-medium">
+                    <AvatarFallback className="text-xs bg-linear-to-br from-violet-500 to-fuchsia-500 text-white font-medium">
                       {getInitials(user?.first_name, user?.last_name)}
                     </AvatarFallback>
                   </Avatar>
@@ -482,7 +482,7 @@ export function TaskDetailPage() {
                       size="sm"
                       onClick={handleCommentSubmit}
                       disabled={!newComment.trim() || isSubmittingComment}
-                      className="shrink-0 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 shadow-lg shadow-violet-500/25"
+                      className="shrink-0 bg-linear-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 shadow-lg shadow-violet-500/25"
                     >
                       {isSubmittingComment ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -500,7 +500,7 @@ export function TaskDetailPage() {
           <div className="space-y-6">
             {/* Status Card */}
             <Card className="border-0 shadow-lg shadow-slate-200/50 overflow-hidden">
-              <div className="h-1 bg-gradient-to-r from-violet-500 to-fuchsia-500" />
+              <div className="h-1 bg-linear-to-r from-violet-500 to-fuchsia-500" />
               <CardHeader>
                 <CardTitle className="text-lg">Status</CardTitle>
               </CardHeader>
@@ -542,14 +542,14 @@ export function TaskDetailPage() {
 
             {/* Details Card */}
             <Card className="border-0 shadow-lg shadow-slate-200/50 overflow-hidden">
-              <div className="h-1 bg-gradient-to-r from-fuchsia-500 to-pink-500" />
+              <div className="h-1 bg-linear-to-r from-fuchsia-500 to-pink-500" />
               <CardHeader>
                 <CardTitle className="text-lg">Details</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Created By */}
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-slate-50 to-white border border-slate-100">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-linear-to-r from-slate-50 to-white border border-slate-100">
+                  <div className="w-10 h-10 rounded-lg bg-linear-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
                     <User className="h-5 w-5 text-white" />
                   </div>
                   <div>
@@ -561,8 +561,8 @@ export function TaskDetailPage() {
                 </div>
 
                 {/* Assigned To */}
-                <div className="flex items-start gap-3 p-3 rounded-xl bg-gradient-to-r from-slate-50 to-white border border-slate-100">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center">
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-linear-to-r from-slate-50 to-white border border-slate-100">
+                  <div className="w-10 h-10 rounded-lg bg-linear-to-br from-blue-500 to-indigo-500 flex items-center justify-center">
                     <Users className="h-5 w-5 text-white" />
                   </div>
                   <div className="flex-1">
@@ -570,7 +570,7 @@ export function TaskDetailPage() {
                     {task.assigned_to && task.assigned_to.length > 0 ? (
                       <div className="flex flex-wrap gap-1">
                         {task.assigned_to.map((assignee) => (
-                          <Badge key={assignee.id} className="text-xs bg-gradient-to-r from-violet-100 to-fuchsia-100 text-violet-700 border-0">
+                          <Badge key={assignee.id} className="text-xs bg-linear-to-r from-violet-100 to-fuchsia-100 text-violet-700 border-0">
                             {assignee.first_name} {assignee.last_name}
                           </Badge>
                         ))}
@@ -582,8 +582,8 @@ export function TaskDetailPage() {
                 </div>
 
                 {/* Due Date */}
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-slate-50 to-white border border-slate-100">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center">
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-linear-to-r from-slate-50 to-white border border-slate-100">
+                  <div className="w-10 h-10 rounded-lg bg-linear-to-br from-amber-500 to-orange-500 flex items-center justify-center">
                     <Calendar className="h-5 w-5 text-white" />
                   </div>
                   <div>
@@ -597,8 +597,8 @@ export function TaskDetailPage() {
                 </div>
 
                 {/* Created At */}
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-slate-50 to-white border border-slate-100">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-linear-to-r from-slate-50 to-white border border-slate-100">
+                  <div className="w-10 h-10 rounded-lg bg-linear-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
                     <Clock className="h-5 w-5 text-white" />
                   </div>
                   <div>
@@ -613,7 +613,7 @@ export function TaskDetailPage() {
 
             {/* Activity Log Teaser */}
             <Card className="border-0 shadow-lg shadow-slate-200/50 overflow-hidden">
-              <div className="h-1 bg-gradient-to-r from-cyan-500 to-blue-500" />
+              <div className="h-1 bg-linear-to-r from-cyan-500 to-blue-500" />
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">Recent Activity</CardTitle>
@@ -631,7 +631,7 @@ export function TaskDetailPage() {
               <CardContent>
                 <div className="space-y-3">
                   <div className="flex items-start gap-3 text-sm">
-                    <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 mt-1.5 ring-4 ring-emerald-100" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-linear-to-br from-emerald-400 to-emerald-600 mt-1.5 ring-4 ring-emerald-100" />
                     <div>
                       <p className="text-slate-700 font-medium">Task created</p>
                       <p className="text-xs text-slate-500">
@@ -641,7 +641,7 @@ export function TaskDetailPage() {
                   </div>
                   {task.updated_at !== task.created_at && (
                     <div className="flex items-start gap-3 text-sm">
-                      <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 mt-1.5 ring-4 ring-blue-100" />
+                      <div className="w-2.5 h-2.5 rounded-full bg-linear-to-br from-blue-400 to-blue-600 mt-1.5 ring-4 ring-blue-100" />
                       <div>
                         <p className="text-slate-700 font-medium">Last updated</p>
                         <p className="text-xs text-slate-500">

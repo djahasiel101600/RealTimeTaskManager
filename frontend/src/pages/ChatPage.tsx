@@ -99,21 +99,21 @@ export const ChatPage: React.FC = () => {
   };
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] bg-gradient-to-br from-slate-50 via-violet-50/20 to-fuchsia-50/10 rounded-xl overflow-hidden border border-slate-200/50 shadow-xl shadow-slate-200/50">
+    <div className="flex h-[calc(100vh-8rem)] bg-linear-to-br from-slate-50 via-violet-50/20 to-fuchsia-50/10 rounded-xl overflow-hidden border border-slate-200/50 shadow-xl shadow-slate-200/50">
       {/* Sidebar */}
       <div className="w-80 bg-white/80 backdrop-blur-xl border-r border-slate-200/50 flex flex-col">
         <div className="p-4 border-b border-slate-200/50">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-linear-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
                 <MessageSquare className="h-4 w-4 text-white" />
               </div>
-              <h2 className="text-xl font-semibold bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent">Messages</h2>
+              <h2 className="text-xl font-semibold bg-linear-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent">Messages</h2>
             </div>
             <Button
               size="icon"
               onClick={() => setShowNewChatModal(true)}
-              className="bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white shadow-lg shadow-violet-500/25"
+              className="bg-linear-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white shadow-lg shadow-violet-500/25"
             >
               <Plus className="h-4 w-4" />
             </Button>
@@ -139,7 +139,7 @@ export const ChatPage: React.FC = () => {
                 className={cn(
                   "capitalize flex-1 text-xs",
                   view === viewType 
-                    ? "bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-md" 
+                    ? "bg-linear-to-r from-violet-600 to-fuchsia-600 text-white shadow-md" 
                     : "hover:bg-white/80 text-slate-600"
                 )}
               >
@@ -156,7 +156,7 @@ export const ChatPage: React.FC = () => {
             </div>
           ) : filteredRooms.length === 0 ? (
             <div className="p-8 text-center">
-              <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-50 flex items-center justify-center">
+              <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-linear-to-br from-slate-100 to-slate-50 flex items-center justify-center">
                 <MessageSquare className="h-7 w-7 text-slate-300" />
               </div>
               <p className="text-slate-500 font-medium">No conversations found</p>
@@ -177,8 +177,8 @@ export const ChatPage: React.FC = () => {
                     className={cn(
                       "w-full justify-start p-3 h-auto mb-1 rounded-xl transition-all duration-200",
                       isActive 
-                        ? "bg-gradient-to-r from-violet-100 to-fuchsia-100 border border-violet-200/50 shadow-sm" 
-                        : "hover:bg-gradient-to-r hover:from-slate-50 hover:to-violet-50/50"
+                        ? "bg-linear-to-r from-violet-100 to-fuchsia-100 border border-violet-200/50 shadow-sm" 
+                        : "hover:bg-linear-to-r hover:from-slate-50 hover:to-violet-50/50"
                     )}
                     onClick={() => setActiveRoom(room)}
                   >
@@ -187,17 +187,17 @@ export const ChatPage: React.FC = () => {
                         {room.room_type === 'direct' && otherUser ? (
                           <Avatar className="ring-2 ring-violet-100">
                             <AvatarImage src={otherUser.avatar} />
-                            <AvatarFallback className="bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white font-medium">
+                            <AvatarFallback className="bg-linear-to-br from-violet-500 to-fuchsia-500 text-white font-medium">
                               {otherUser.username?.charAt(0).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
                         ) : (
-                          <div className="h-10 w-10 rounded-full bg-gradient-to-br from-violet-100 to-fuchsia-100 flex items-center justify-center">
+                          <div className="h-10 w-10 rounded-full bg-linear-to-br from-violet-100 to-fuchsia-100 flex items-center justify-center">
                             {getRoomIcon(room)}
                           </div>
                         )}
                         {otherUser?.is_online && (
-                          <div className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 border-2 border-white shadow-sm" />
+                          <div className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-linear-to-br from-emerald-400 to-emerald-600 border-2 border-white shadow-sm" />
                         )}
                       </div>
                       
@@ -227,7 +227,7 @@ export const ChatPage: React.FC = () => {
                       </div>
                       
                       {room.unread_count > 0 && (
-                        <Badge className="ml-2 h-5 min-w-5 p-0 flex items-center justify-center bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white border-0 text-xs">
+                        <Badge className="ml-2 h-5 min-w-5 p-0 flex items-center justify-center bg-linear-to-r from-violet-600 to-fuchsia-600 text-white border-0 text-xs">
                           {room.unread_count}
                         </Badge>
                       )}
@@ -260,7 +260,7 @@ export const ChatPage: React.FC = () => {
                               ?.avatar} 
                           />
                         )}
-                        <AvatarFallback className="bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white font-medium">
+                        <AvatarFallback className="bg-linear-to-br from-violet-500 to-fuchsia-500 text-white font-medium">
                           {activeRoom.participants
                             .filter((p: any) => p.id !== user?.id)[0]
                             ?.username?.charAt(0)
@@ -294,7 +294,7 @@ export const ChatPage: React.FC = () => {
                     </>
                   ) : (
                     <>
-                      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-violet-100 to-fuchsia-100 flex items-center justify-center">
+                      <div className="h-10 w-10 rounded-full bg-linear-to-br from-violet-100 to-fuchsia-100 flex items-center justify-center">
                         {getRoomIcon(activeRoom)}
                       </div>
                       <div>
@@ -329,7 +329,7 @@ export const ChatPage: React.FC = () => {
             </div>
             
             {/* Chat messages */}
-            <div className="flex-1">
+            <div className="flex-1 overflow-hidden">
               <ChatWindow 
                 roomId={activeRoom.id}
                 roomType={activeRoom.room_type}
@@ -339,10 +339,10 @@ export const ChatPage: React.FC = () => {
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center p-8">
             <div className="relative mb-6">
-              <div className="h-24 w-24 rounded-3xl bg-gradient-to-br from-violet-100 to-fuchsia-100 flex items-center justify-center">
+              <div className="h-24 w-24 rounded-3xl bg-linear-to-br from-violet-100 to-fuchsia-100 flex items-center justify-center">
                 <MessageSquare className="h-12 w-12 text-violet-500" />
               </div>
-              <div className="absolute -top-1 -right-1 w-8 h-8 rounded-full bg-gradient-to-br from-fuchsia-500 to-pink-500 flex items-center justify-center shadow-lg shadow-fuchsia-500/30">
+              <div className="absolute -top-1 -right-1 w-8 h-8 rounded-full bg-linear-to-br from-fuchsia-500 to-pink-500 flex items-center justify-center shadow-lg shadow-fuchsia-500/30">
                 <Sparkles className="h-4 w-4 text-white" />
               </div>
             </div>
@@ -352,7 +352,7 @@ export const ChatPage: React.FC = () => {
             </p>
             <Button 
               onClick={() => setShowNewChatModal(true)}
-              className="bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white shadow-lg shadow-violet-500/25"
+              className="bg-linear-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white shadow-lg shadow-violet-500/25"
             >
               <Plus className="mr-2 h-4 w-4" />
               Start New Conversation

@@ -26,10 +26,10 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 const roleColors = {
-  clerk: 'bg-gradient-to-r from-blue-500 to-blue-600 text-white',
-  atm: 'bg-gradient-to-r from-violet-500 to-purple-600 text-white',
-  atl: 'bg-gradient-to-r from-amber-500 to-orange-600 text-white',
-  supervisor: 'bg-gradient-to-r from-rose-500 to-red-600 text-white',
+  clerk: 'bg-linear-to-r from-blue-500 to-blue-600 text-white',
+  atm: 'bg-linear-to-r from-violet-500 to-purple-600 text-white',
+  atl: 'bg-linear-to-r from-amber-500 to-orange-600 text-white',
+  supervisor: 'bg-linear-to-r from-rose-500 to-red-600 text-white',
 };
 
 const roleLabels = {
@@ -131,7 +131,7 @@ export const ProfilePage: React.FC = () => {
   if (!user) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center animate-pulse">
+        <div className="w-12 h-12 rounded-2xl bg-linear-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center animate-pulse">
           <Sparkles className="h-6 w-6 text-white animate-spin" />
         </div>
       </div>
@@ -141,7 +141,7 @@ export const ProfilePage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header with gradient accent */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-violet-600 p-6 text-white shadow-xl shadow-violet-500/25">
+      <div className="relative overflow-hidden rounded-2xl bg-linear-to-r from-violet-600 via-fuchsia-600 to-violet-600 p-6 text-white shadow-xl shadow-violet-500/25">
         <div className="absolute inset-0 bg-[url('data:image/svg+xml,...')] opacity-10"></div>
         <div className="relative flex items-center justify-between">
           <div>
@@ -193,14 +193,14 @@ export const ProfilePage: React.FC = () => {
       </div>
 
       {success && (
-        <Alert className="bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200">
+        <Alert className="bg-linear-to-r from-emerald-50 to-teal-50 border-emerald-200">
           <CheckCircle className="h-4 w-4 text-emerald-600" />
           <AlertDescription className="text-emerald-700">{success}</AlertDescription>
         </Alert>
       )}
 
       {error && (
-        <Alert className="bg-gradient-to-r from-rose-50 to-red-50 border-rose-200">
+        <Alert className="bg-linear-to-r from-rose-50 to-red-50 border-rose-200">
           <AlertDescription className="text-rose-700">{error}</AlertDescription>
         </Alert>
       )}
@@ -209,10 +209,10 @@ export const ProfilePage: React.FC = () => {
         {/* Left column - Avatar and basic info */}
         <div className="space-y-6">
           <Card className="border-0 shadow-lg shadow-slate-200/50 overflow-hidden">
-            <div className="h-1 bg-gradient-to-r from-violet-500 to-fuchsia-500" />
+            <div className="h-1 bg-linear-to-r from-violet-500 to-fuchsia-500" />
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-100 to-fuchsia-100 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-linear-to-br from-violet-100 to-fuchsia-100 flex items-center justify-center">
                   <Camera className="h-4 w-4 text-violet-600" />
                 </div>
                 Profile Picture
@@ -222,7 +222,7 @@ export const ProfilePage: React.FC = () => {
               <div className="relative">
                 <Avatar className="h-32 w-32 ring-4 ring-violet-100 shadow-xl">
                   <AvatarImage src={avatarPreview || user.avatar} />
-                  <AvatarFallback className="text-3xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white font-bold">
+                  <AvatarFallback className="text-3xl bg-linear-to-br from-violet-500 to-fuchsia-500 text-white font-bold">
                     {user.username?.charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
@@ -234,7 +234,7 @@ export const ProfilePage: React.FC = () => {
                       className="hidden"
                       onChange={handleFileChange}
                     />
-                    <div className="h-10 w-10 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 flex items-center justify-center cursor-pointer hover:from-violet-700 hover:to-fuchsia-700 shadow-lg shadow-violet-500/30 transition-all duration-200">
+                    <div className="h-10 w-10 rounded-full bg-linear-to-r from-violet-600 to-fuchsia-600 flex items-center justify-center cursor-pointer hover:from-violet-700 hover:to-fuchsia-700 shadow-lg shadow-violet-500/30 transition-all duration-200">
                       <Camera className="h-5 w-5 text-white" />
                     </div>
                   </label>
@@ -249,19 +249,19 @@ export const ProfilePage: React.FC = () => {
           </Card>
 
           <Card className="border-0 shadow-lg shadow-slate-200/50 overflow-hidden">
-            <div className="h-1 bg-gradient-to-r from-blue-500 to-indigo-500" />
+            <div className="h-1 bg-linear-to-r from-blue-500 to-indigo-500" />
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-linear-to-br from-blue-100 to-indigo-100 flex items-center justify-center">
                   <Shield className="h-4 w-4 text-blue-600" />
                 </div>
                 Account Information
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="p-3 rounded-xl bg-gradient-to-r from-slate-50 to-white border border-slate-100">
+              <div className="p-3 rounded-xl bg-linear-to-r from-slate-50 to-white border border-slate-100">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-lg bg-linear-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
                     <Shield className="h-5 w-5 text-white" />
                   </div>
                   <div>
@@ -273,9 +273,9 @@ export const ProfilePage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-gradient-to-r from-slate-50 to-white border border-slate-100">
+              <div className="p-3 rounded-xl bg-linear-to-r from-slate-50 to-white border border-slate-100">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-lg bg-linear-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
                     <Calendar className="h-5 w-5 text-white" />
                   </div>
                   <div>
@@ -287,13 +287,13 @@ export const ProfilePage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-gradient-to-r from-slate-50 to-white border border-slate-100">
+              <div className="p-3 rounded-xl bg-linear-to-r from-slate-50 to-white border border-slate-100">
                 <div className="flex items-center gap-3">
                   <div className={cn(
                     "w-10 h-10 rounded-lg flex items-center justify-center",
                     user.is_online 
-                      ? "bg-gradient-to-br from-emerald-500 to-green-500" 
-                      : "bg-gradient-to-br from-slate-400 to-slate-500"
+                      ? "bg-linear-to-br from-emerald-500 to-green-500" 
+                      : "bg-linear-to-br from-slate-400 to-slate-500"
                   )}>
                     <Clock className="h-5 w-5 text-white" />
                   </div>
@@ -318,10 +318,10 @@ export const ProfilePage: React.FC = () => {
         {/* Right column - Profile form */}
         <div className="lg:col-span-2">
           <Card className="border-0 shadow-lg shadow-slate-200/50 overflow-hidden">
-            <div className="h-1 bg-gradient-to-r from-fuchsia-500 to-pink-500" />
+            <div className="h-1 bg-linear-to-r from-fuchsia-500 to-pink-500" />
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-fuchsia-100 to-pink-100 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-linear-to-br from-fuchsia-100 to-pink-100 flex items-center justify-center">
                   <User className="h-4 w-4 text-fuchsia-600" />
                 </div>
                 Personal Information
@@ -343,8 +343,8 @@ export const ProfilePage: React.FC = () => {
                       className="border-slate-200 focus:border-violet-300 focus:ring-violet-200"
                     />
                   ) : (
-                    <div className="flex items-center gap-2 p-3 rounded-xl bg-gradient-to-r from-slate-50 to-white border border-slate-100">
-                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-100 to-fuchsia-100 flex items-center justify-center">
+                    <div className="flex items-center gap-2 p-3 rounded-xl bg-linear-to-r from-slate-50 to-white border border-slate-100">
+                      <div className="w-8 h-8 rounded-lg bg-linear-to-br from-violet-100 to-fuchsia-100 flex items-center justify-center">
                         <User className="h-4 w-4 text-violet-600" />
                       </div>
                       <span className="font-medium text-slate-700">{user.username}</span>
@@ -354,8 +354,8 @@ export const ProfilePage: React.FC = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="email" className="text-slate-700">Email</Label>
-                  <div className="flex items-center gap-2 p-3 rounded-xl bg-gradient-to-r from-slate-50 to-white border border-slate-100">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center">
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-linear-to-r from-slate-50 to-white border border-slate-100">
+                    <div className="w-8 h-8 rounded-lg bg-linear-to-br from-blue-100 to-indigo-100 flex items-center justify-center">
                       <Mail className="h-4 w-4 text-blue-600" />
                     </div>
                     <span className="font-medium text-slate-700">{user.email}</span>
@@ -366,13 +366,13 @@ export const ProfilePage: React.FC = () => {
                 </div>
               </div>
 
-              <Separator className="bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
+              <Separator className="bg-linear-to-r from-transparent via-slate-200 to-transparent" />
 
               <div className="space-y-2">
                 <Label htmlFor="phone" className="text-slate-700">Phone Number</Label>
                 {isEditing ? (
                   <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-lg bg-linear-to-br from-emerald-100 to-teal-100 flex items-center justify-center">
                       <Phone className="h-5 w-5 text-emerald-600" />
                     </div>
                     <Input
@@ -385,8 +385,8 @@ export const ProfilePage: React.FC = () => {
                     />
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 p-3 rounded-xl bg-gradient-to-r from-slate-50 to-white border border-slate-100">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center">
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-linear-to-r from-slate-50 to-white border border-slate-100">
+                    <div className="w-8 h-8 rounded-lg bg-linear-to-br from-emerald-100 to-teal-100 flex items-center justify-center">
                       <Phone className="h-4 w-4 text-emerald-600" />
                     </div>
                     <span className={cn(
@@ -399,7 +399,7 @@ export const ProfilePage: React.FC = () => {
                 )}
               </div>
 
-              <Separator className="bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
+              <Separator className="bg-linear-to-r from-transparent via-slate-200 to-transparent" />
 
               <div className="space-y-4">
                 <h3 className="font-medium text-slate-900">Password</h3>
@@ -419,10 +419,10 @@ export const ProfilePage: React.FC = () => {
 
           {/* Danger zone */}
           <Card className="mt-6 border-0 shadow-lg shadow-rose-100/50 overflow-hidden">
-            <div className="h-1 bg-gradient-to-r from-rose-500 to-red-500" />
+            <div className="h-1 bg-linear-to-r from-rose-500 to-red-500" />
             <CardHeader>
               <CardTitle className="text-rose-600 flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-100 to-red-100 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-linear-to-br from-rose-100 to-red-100 flex items-center justify-center">
                   <X className="h-4 w-4 text-rose-600" />
                 </div>
                 Danger Zone
@@ -432,7 +432,7 @@ export const ProfilePage: React.FC = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between p-4 border border-rose-100 rounded-xl bg-gradient-to-r from-rose-50/50 to-white">
+              <div className="flex items-center justify-between p-4 border border-rose-100 rounded-xl bg-linear-to-r from-rose-50/50 to-white">
                 <div>
                   <h4 className="font-medium text-slate-900">Delete Account</h4>
                   <p className="text-sm text-slate-500">
@@ -442,7 +442,7 @@ export const ProfilePage: React.FC = () => {
                 <Button 
                   variant="destructive" 
                   disabled
-                  className="bg-gradient-to-r from-rose-500 to-red-500 hover:from-rose-600 hover:to-red-600 shadow-lg shadow-rose-500/25"
+                  className="bg-linear-to-r from-rose-500 to-red-500 hover:from-rose-600 hover:to-red-600 shadow-lg shadow-rose-500/25"
                 >
                   Delete Account
                 </Button>

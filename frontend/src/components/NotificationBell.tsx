@@ -116,16 +116,16 @@ export const NotificationBell: React.FC = () => {
         <Button variant="ghost" size="icon" className="relative hover:bg-violet-50 rounded-xl">
           <Bell className="h-5 w-5 text-slate-600" />
           {unreadCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 h-5 w-5 flex items-center justify-center rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 text-[10px] font-bold text-white shadow-lg shadow-violet-500/30 animate-pulse">
+            <span className="absolute -top-0.5 -right-0.5 h-5 w-5 flex items-center justify-center rounded-full bg-linear-to-r from-violet-500 to-fuchsia-500 text-[10px] font-bold text-white shadow-lg shadow-violet-500/30 animate-pulse">
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-96 p-0 border-violet-100 shadow-xl shadow-violet-500/10" align="end">
-        <div className="flex items-center justify-between p-4 border-b border-violet-100 bg-gradient-to-r from-violet-50 to-fuchsia-50">
+        <div className="flex items-center justify-between p-4 border-b border-violet-100 bg-linear-to-r from-violet-50 to-fuchsia-50">
           <div className="flex items-center gap-2">
-            <div className="p-1.5 bg-gradient-to-br from-violet-500 to-fuchsia-500 rounded-lg">
+            <div className="p-1.5 bg-linear-to-br from-violet-500 to-fuchsia-500 rounded-lg">
               <Bell className="h-4 w-4 text-white" />
             </div>
             <h3 className="font-semibold text-slate-800">Notifications</h3>
@@ -158,7 +158,7 @@ export const NotificationBell: React.FC = () => {
             </div>
           ) : notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 px-4">
-              <div className="p-5 bg-gradient-to-br from-violet-100 to-fuchsia-100 rounded-2xl mb-4">
+              <div className="p-5 bg-linear-to-br from-violet-100 to-fuchsia-100 rounded-2xl mb-4">
                 <BellOff className="h-10 w-10 text-violet-500" />
               </div>
               <p className="font-semibold text-slate-800 mb-1">All caught up!</p>
@@ -202,7 +202,7 @@ export const NotificationBell: React.FC = () => {
                           {formatTimeAgo(notification.created_at)}
                         </span>
                         {!notification.is_read && (
-                          <div className="h-2 w-2 bg-gradient-to-r from-violet-500 to-fuchsia-500 rounded-full animate-pulse" />
+                          <div className="h-2 w-2 bg-linear-to-r from-violet-500 to-fuchsia-500 rounded-full animate-pulse" />
                         )}
                       </div>
                     </div>
@@ -213,7 +213,7 @@ export const NotificationBell: React.FC = () => {
           )}
         </ScrollArea>
         {notifications.length > 0 && (
-          <div className="p-3 border-t border-violet-100 bg-gradient-to-r from-violet-50/50 to-fuchsia-50/50">
+          <div className="p-3 border-t border-violet-100 bg-linear-to-r from-violet-50/50 to-fuchsia-50/50">
             <Button 
               variant="ghost" 
               size="sm" 

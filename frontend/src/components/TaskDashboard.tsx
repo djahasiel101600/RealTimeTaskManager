@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Pagination } from '@/components/ui/pagination';
 import { useTaskStore } from '@/stores/task.store';
 import { useAuthStore } from '@/stores/auth.store';
 import { 
@@ -51,7 +52,7 @@ const StatCard = ({
 );
 
 export const TaskDashboard: React.FC = () => {
-  const { tasks, filters, isLoading, fetchTasks, setFilters } = useTaskStore();
+  const { tasks, filters, isLoading, pagination, fetchTasks, setFilters, nextPage, previousPage, goToPage } = useTaskStore();
   const { user } = useAuthStore();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState(false);
 
@@ -82,7 +83,7 @@ export const TaskDashboard: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent">
+          <h1 className="text-3xl font-bold bg-linear-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent">
             Task Dashboard
           </h1>
           <p className="text-slate-500 mt-1">
@@ -92,7 +93,7 @@ export const TaskDashboard: React.FC = () => {
         {canCreateTask && (
           <Button 
             onClick={() => setIsCreateDialogOpen(true)}
-            className="bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 shadow-lg shadow-violet-500/25 transition-all duration-300"
+            className="bg-linear-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 shadow-lg shadow-violet-500/25 transition-all duration-300"
           >
             <Plus className="mr-2 h-4 w-4" />
             New Task
@@ -106,42 +107,42 @@ export const TaskDashboard: React.FC = () => {
           title="Total Tasks" 
           value={stats.total} 
           icon={ClipboardList}
-          gradient="bg-gradient-to-br from-slate-600 to-slate-700"
+          gradient="bg-linear-to-br from-slate-600 to-slate-700"
           iconBg="bg-white/20"
         />
         <StatCard 
           title="To Do" 
           value={stats.todo} 
           icon={ListTodo}
-          gradient="bg-gradient-to-br from-slate-500 to-slate-600"
+          gradient="bg-linear-to-br from-slate-500 to-slate-600"
           iconBg="bg-white/20"
         />
         <StatCard 
           title="In Progress" 
           value={stats.inProgress} 
           icon={Clock}
-          gradient="bg-gradient-to-br from-violet-500 to-violet-600"
+          gradient="bg-linear-to-br from-violet-500 to-violet-600"
           iconBg="bg-white/20"
         />
         <StatCard 
           title="In Review" 
           value={stats.review} 
           icon={TrendingUp}
-          gradient="bg-gradient-to-br from-amber-500 to-orange-500"
+          gradient="bg-linear-to-br from-amber-500 to-orange-500"
           iconBg="bg-white/20"
         />
         <StatCard 
           title="Completed" 
           value={stats.done} 
           icon={CheckCircle2}
-          gradient="bg-gradient-to-br from-emerald-500 to-teal-500"
+          gradient="bg-linear-to-br from-emerald-500 to-teal-500"
           iconBg="bg-white/20"
         />
         <StatCard 
           title="Urgent" 
           value={stats.urgent} 
           icon={AlertCircle}
-          gradient="bg-gradient-to-br from-rose-500 to-pink-500"
+          gradient="bg-linear-to-br from-rose-500 to-pink-500"
           iconBg="bg-white/20"
         />
       </div>
@@ -197,7 +198,7 @@ export const TaskDashboard: React.FC = () => {
                 variant={filters.assignedToMe ? "default" : "outline"}
                 onClick={() => handleFilterChange('assignedToMe', !filters.assignedToMe)}
                 className={filters.assignedToMe 
-                  ? "bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 border-0" 
+                  ? "bg-linear-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 border-0" 
                   : "border-violet-200 text-violet-700 hover:bg-violet-50 hover:border-violet-300"}
               >
                 <Filter className="mr-2 h-4 w-4" />
@@ -217,7 +218,7 @@ export const TaskDashboard: React.FC = () => {
             </div>
           ) : tasks.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20">
-              <div className="p-6 bg-gradient-to-br from-violet-100 to-fuchsia-100 rounded-2xl mb-5">
+              <div className="p-6 bg-linear-to-br from-violet-100 to-fuchsia-100 rounded-2xl mb-5">
                 <ClipboardList className="h-14 w-14 text-violet-500" />
               </div>
               <h3 className="text-xl font-semibold text-slate-800 mb-2">No tasks found</h3>
@@ -231,7 +232,7 @@ export const TaskDashboard: React.FC = () => {
               {canCreateTask && !filters.search && !filters.status && !filters.priority && (
                 <Button 
                   onClick={() => setIsCreateDialogOpen(true)}
-                  className="bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 shadow-lg shadow-violet-500/25"
+                  className="bg-linear-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 shadow-lg shadow-violet-500/25"
                 >
                   <Plus className="mr-2 h-4 w-4" />
                   Create Your First Task
@@ -239,10 +240,25 @@ export const TaskDashboard: React.FC = () => {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {tasks.map((task) => (
-                <TaskCard key={task.id} task={task} />
-              ))}
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {tasks.map((task) => (
+                  <TaskCard key={task.id} task={task} />
+                ))}
+              </div>
+              
+              {/* Pagination */}
+              <Pagination
+                currentPage={pagination.page}
+                totalPages={pagination.totalPages}
+                totalCount={pagination.totalCount}
+                hasNext={pagination.hasNext}
+                hasPrevious={pagination.hasPrevious}
+                onPageChange={goToPage}
+                onNextPage={nextPage}
+                onPreviousPage={previousPage}
+                className="py-4 border-t border-violet-100"
+              />
             </div>
           )}
         </CardContent>

@@ -75,15 +75,7 @@ export const taskService = {
     }),
 
   getTasks: (filters?: any) =>
-    api.get<PaginatedResponse<Task> | Task[]>('/tasks/', { params: filters }).then(res => {
-      // Handle both paginated and non-paginated responses
-      const data = res.data;
-      if (Array.isArray(data)) {
-        return data;
-      }
-      // Paginated response
-      return data.results;
-    }),
+    api.get<PaginatedResponse<Task> | Task[]>('/tasks/', { params: filters }).then(res => res.data),
 
   getById: (id: number) =>
     api.get<Task>(`/tasks/${id}/`).then(res => res.data),

@@ -2,10 +2,27 @@ import { create } from 'zustand';
 import type { Task, TaskStatus, Priority } from '../types';
 import { taskService } from '@/services/api';
 
+interface PaginatedResponse<T> {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+}
+
+interface PaginationInfo {
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  totalCount: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+}
+
 interface TaskState {
   tasks: Task[];
   selectedTask: Task | null;
   isLoading: boolean;
+  pagination: PaginationInfo;
   filters: {
     status?: TaskStatus;
     priority?: Priority;
@@ -13,7 +30,7 @@ interface TaskState {
     search?: string;
   };
   
-  fetchTasks: () => Promise<void>;
+  fetchTasks: (page?: number) => Promise<void>;
   fetchTask: (id: number) => Promise<void>;
   createTask: (taskData: any) => Promise<Task>;
   updateTask: (id: number, updates: Partial<Task>) => Promise<Task>;
@@ -22,20 +39,55 @@ interface TaskState {
   assignTask: (taskId: number, userIds: number[]) => Promise<void>;
   setFilters: (filters: Partial<TaskState['filters']>) => void;
   setSelectedTask: (task: Task | null) => void;
+  nextPage: () => void;
+  previousPage: () => void;
+  goToPage: (page: number) => void;
 }
 
 export const useTaskStore = create<TaskState>((set, get) => ({
   tasks: [],
   selectedTask: null,
   isLoading: false,
+  pagination: {
+    page: 1,
+    pageSize: 20,
+    totalPages: 1,
+    totalCount: 0,
+    hasNext: false,
+    hasPrevious: false,
+  },
   filters: {},
   
-  fetchTasks: async () => {
+  fetchTasks: async (page?: number) => {
     set({ isLoading: true });
     try {
       const filters = get().filters;
-      const tasks = await taskService.getTasks(filters);
-      set({ tasks, isLoading: false });
+      const currentPage = page ?? get().pagination.page;
+      const response = await taskService.getTasks({ ...filters, page: currentPage }) as PaginatedResponse<Task> | Task[];
+      
+      // Handle paginated response from DRF
+      if (!Array.isArray(response) && response.results) {
+        const totalCount = response.count || 0;
+        const pageSize = get().pagination.pageSize;
+        const totalPages = Math.ceil(totalCount / pageSize);
+        
+        set({
+          tasks: response.results,
+          pagination: {
+            page: currentPage,
+            pageSize,
+            totalCount,
+            totalPages,
+            hasNext: !!response.next,
+            hasPrevious: !!response.previous,
+          },
+          isLoading: false,
+        });
+      } else {
+        // Fallback for non-paginated response (array)
+        const tasksArray = Array.isArray(response) ? response : [];
+        set({ tasks: tasksArray, isLoading: false });
+      }
     } catch (error) {
       set({ isLoading: false });
       throw error;
@@ -94,9 +146,31 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   
   setFilters: (filters) => {
     set((state) => ({ 
-      filters: { ...state.filters, ...filters }
+      filters: { ...state.filters, ...filters },
+      pagination: { ...state.pagination, page: 1 } // Reset to page 1 on filter change
     }));
   },
   
   setSelectedTask: (task) => set({ selectedTask: task }),
+  
+  nextPage: () => {
+    const { pagination } = get();
+    if (pagination.hasNext) {
+      get().fetchTasks(pagination.page + 1);
+    }
+  },
+  
+  previousPage: () => {
+    const { pagination } = get();
+    if (pagination.hasPrevious) {
+      get().fetchTasks(pagination.page - 1);
+    }
+  },
+  
+  goToPage: (page: number) => {
+    const { pagination } = get();
+    if (page >= 1 && page <= pagination.totalPages) {
+      get().fetchTasks(page);
+    }
+  },
 }));

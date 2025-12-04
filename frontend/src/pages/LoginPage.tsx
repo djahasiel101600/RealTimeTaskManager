@@ -99,7 +99,7 @@ export const LoginPage: React.FC = () => {
           
           <Button
             type="submit"
-            className="w-full h-11 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 shadow-lg shadow-violet-500/25 transition-all duration-300 text-base font-medium"
+            className="w-full h-11 bg-linear-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 shadow-lg shadow-violet-500/25 transition-all duration-300 text-base font-medium"
             disabled={isLoading}
           >
             {isLoading ? (
