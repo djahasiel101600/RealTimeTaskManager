@@ -41,6 +41,8 @@ RUN addgroup -g 1001 -S nginx-group && \
 RUN chown -R nginx-user:nginx-group /var/cache/nginx && \
     chown -R nginx-user:nginx-group /var/log/nginx && \
     chown -R nginx-user:nginx-group /etc/nginx/conf.d && \
+    mkdir -p /run/nginx && \
+    chown -R nginx-user:nginx-group /run/nginx && \
     touch /var/run/nginx.pid && \
     chown -R nginx-user:nginx-group /var/run/nginx.pid
 

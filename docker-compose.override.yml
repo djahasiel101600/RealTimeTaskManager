@@ -40,7 +40,7 @@ services:
       - ./frontend:/app
       - /app/node_modules
     ports:
-      - "3000:80"  # Direct frontend access
+      - "3002:80"  # Direct frontend access
 
   # Bind mount nginx logs for debugging
   nginx:
