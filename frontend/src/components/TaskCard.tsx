@@ -158,14 +158,13 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick }) => {
           {canEditTask && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-violet-100"
+                <button
+                  className="inline-flex items-center justify-center h-8 w-8 rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-violet-100"
                   onClick={(e) => e.stopPropagation()}
+                  aria-label="Open task menu"
                 >
                   <MoreVertical className="h-4 w-4 text-slate-500" />
-                </Button>
+                </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48" forceMount={isTestEnv() ? true : undefined}>
                 <DropdownMenuItem

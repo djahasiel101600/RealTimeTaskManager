@@ -221,21 +221,22 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                 </Label>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        'w-full justify-start text-left font-normal border-slate-200 hover:bg-violet-50 hover:border-violet-300',
-                        !formData.dueDate && 'text-slate-400'
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {formData.dueDate ? (
-                        format(formData.dueDate, 'PPP')
-                      ) : (
-                        <span>Pick a date</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        className={cn(
+                          'w-full flex items-center justify-start text-left font-normal border-slate-200 hover:bg-violet-50 hover:border-violet-300 px-3 py-2 rounded-md',
+                          !formData.dueDate && 'text-slate-400'
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {formData.dueDate ? (
+                          format(formData.dueDate, 'PPP')
+                        ) : (
+                          <span>Pick a date</span>
+                        )}
+                      </div>
+                    </PopoverTrigger>
                   <PopoverContent className="w-auto p-0 border-0 shadow-xl">
                     <Calendar
                       mode="single"
@@ -260,15 +261,14 @@ export const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                 </Label>
                 <Popover open={isUsersOpen} onOpenChange={setIsUsersOpen}>
                   <PopoverTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="gap-2 border-violet-200 hover:bg-violet-50 hover:border-violet-300 hover:text-violet-700"
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-transparent hover:bg-violet-50"
                     >
                       <UserPlus className="h-4 w-4" />
                       Add People
-                    </Button>
+                    </div>
                   </PopoverTrigger>
                   <PopoverContent className="w-80 p-0 border-0 shadow-xl overflow-hidden" align="end">
                     <div className="p-3 border-b border-slate-100 bg-linear-to-r from-slate-50 to-white">

@@ -46,3 +46,12 @@ yarn-error.log*
 tmp/
 temp/
 *.tmp
+
+# Ignore frontend test files and folders anywhere under frontend/
+**/frontend/**/tests/
+**/frontend/**/test/
+**/frontend/**/__tests__/
+**/frontend/**/*.spec.*
+**/frontend/**/*.test.*
+**/frontend/**/test-*
+**/frontend/**/run-tests*

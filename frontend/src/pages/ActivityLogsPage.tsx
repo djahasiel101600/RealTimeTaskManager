@@ -296,12 +296,12 @@ export const ActivityLogsPage: React.FC = () => {
               
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="h-11 px-4 bg-slate-50 border-slate-200 hover:bg-white">
+                  <div role="button" tabIndex={0} className="h-11 px-4 bg-slate-50 border-slate-200 hover:bg-white inline-flex items-center gap-2 rounded-md">
                     <Calendar className="mr-2 h-4 w-4 text-slate-500" />
                     <span className="text-slate-700">
                       {format(dateRange.from, 'MMM d')} - {format(dateRange.to, 'MMM d, yyyy')}
                     </span>
-                  </Button>
+                  </div>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="end">
                   <CalendarComponent

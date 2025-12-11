@@ -113,14 +113,19 @@ export const NotificationBell: React.FC = () => {
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative hover:bg-violet-50 rounded-xl">
+        <div
+          role="button"
+          tabIndex={0}
+          className="inline-flex items-center justify-center relative hover:bg-violet-50 rounded-xl h-9 w-9"
+          aria-label="Open notifications"
+        >
           <Bell className="h-5 w-5 text-slate-600" />
           {unreadCount > 0 && (
             <span className="absolute -top-0.5 -right-0.5 h-5 w-5 flex items-center justify-center rounded-full bg-linear-to-r from-violet-500 to-fuchsia-500 text-[10px] font-bold text-white shadow-lg shadow-violet-500/30 animate-pulse">
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
-        </Button>
+        </div>
       </PopoverTrigger>
       <PopoverContent className="w-96 p-0 border-violet-100 shadow-xl shadow-violet-500/10" align="end">
         <div className="flex items-center justify-between p-4 border-b border-violet-100 bg-linear-to-r from-violet-50 to-fuchsia-50">
