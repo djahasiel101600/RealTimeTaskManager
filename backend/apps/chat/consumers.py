@@ -14,8 +14,27 @@ class ChatConsumer(AsyncWebsocketConsumer):
         from django.contrib.auth import get_user_model
         User = get_user_model()  # safe inside method
         self.user = None
-        query_string = self.scope['query_string'].decode()
-        token = query_string.split('token=')[-1] if 'token=' in query_string else ''
+        logger.debug(f'ChatConsumer.connect: scope_path={self.scope.get("path")} headers={self.scope.get("headers")}')
+        # Prefer token from Sec-WebSocket-Protocol (subprotocols), then HttpOnly cookie, then fall back to query string
+        subprotocols = self.scope.get('subprotocols', []) or []
+        token = subprotocols[0] if len(subprotocols) > 0 else ''
+        logger.debug(f'ChatConsumer.connect: subprotocols={subprotocols} token={token}')
+        if not token:
+            # scope['headers'] is a list of [name, value] byte pairs
+            headers = dict((k.decode().lower(), v.decode()) for k, v in self.scope.get('headers', []))
+            cookie_header = headers.get('cookie', '')
+            if cookie_header:
+                try:
+                    from http.cookies import SimpleCookie
+                    simple = SimpleCookie()
+                    simple.load(cookie_header)
+                    if 'access' in simple:
+                        token = simple['access'].value
+                except Exception:
+                    token = ''
+        if not token:
+            query_string = self.scope['query_string'].decode()
+            token = query_string.split('token=')[-1] if 'token=' in query_string else ''
         
         logger.info(f"Chat WebSocket connect attempt from {self.scope.get('client', 'unknown')}")
 
@@ -23,6 +42,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
             user_id = int(payload['user_id'])  # Convert to int since JWT may have it as string
             self.user = await database_sync_to_async(User.objects.get)(id=user_id)
+            logger.debug(f'ChatConsumer.connect: authenticated user id={getattr(self.user, "id", None)} username={getattr(self.user, "username", None)}')
             self.user.is_online = True
             await database_sync_to_async(self.user.save)()
             logger.info(f"Chat WebSocket authenticated for user {self.user.username} (id={user_id})")
@@ -56,17 +76,23 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return
             
         message_type = data.get('type')
+        logger.debug(f'receive(): user={getattr(self.user, "id", None)} type={message_type} raw={data}')
 
-        if message_type == 'join_room':
-            await self.join_room(data)
-        elif message_type == 'leave_room':
-            await self.leave_room(data)
-        elif message_type == 'send_message':
-            await self.handle_send_message(data)
-        elif message_type == 'typing':
-            await self.typing_indicator(data)
-        else:
-            logger.warning(f"Unknown message type: {message_type}")
+        try:
+            if message_type == 'join_room':
+                await self.join_room(data)
+            elif message_type == 'leave_room':
+                await self.leave_room(data)
+            elif message_type == 'send_message':
+                await self.handle_send_message(data)
+            elif message_type == 'typing':
+                await self.typing_indicator(data)
+            else:
+                logger.warning(f"Unknown message type: {message_type}")
+        except Exception as e:
+            logger.exception('Error processing websocket message (type=%s) for user=%s', message_type, getattr(self.user, 'id', None))
+            # Re-raise so the test harness sees the original error (and we still have logged trace)
+            raise
 
     async def handle_send_message(self, data):
         """Wrapper to handle send_message with error handling"""
@@ -94,7 +120,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
         # that both users will join (sorted user IDs)
         if room_type == 'direct':
             # Get or create the actual room to get the consistent room ID
+            logger.debug(f'join_room: calling get_or_create_direct_room_id user={getattr(self.user, "id", None)} other={room_id}')
             actual_room_id = await self.get_or_create_direct_room_id(room_id)
+            logger.debug(f'join_room: got actual_room_id={actual_room_id} for user={getattr(self.user, "id", None)}')
             self.room_group_name = f'direct_{actual_room_id}'
         elif room_type == 'task':
             self.room_group_name = f'task_{room_id}'
@@ -103,27 +131,37 @@ class ChatConsumer(AsyncWebsocketConsumer):
         else:
             self.room_group_name = f'room_{room_id}'
 
-        await self.channel_layer.group_add(
-            self.room_group_name,
-            self.channel_name
-        )
+        try:
+            await self.channel_layer.group_add(
+                self.room_group_name,
+                self.channel_name
+            )
+        except Exception:
+            logger.exception('channel_layer.group_add failed for group=%s user=%s', self.room_group_name, getattr(self.user, 'id', None))
+            raise
         
     @database_sync_to_async
     def get_or_create_direct_room_id(self, other_user_id):
         """Get or create a direct chat room and return its ID"""
         from django.contrib.auth import get_user_model
         User = get_user_model()
-        
+        logger.debug(f'get_or_create_direct_room_id: self.user={getattr(self.user, "id", None)} other_user_id={other_user_id}')
         try:
             other_user = User.objects.get(id=other_user_id)
             room, _ = ChatRoom.objects.get_or_create_direct(
                 user1=self.user,
                 user2=other_user
             )
+            logger.debug(f'get_or_create_direct_room_id: found/created room={getattr(room, "id", None)}')
             return room.id
         except User.DoesNotExist:
             # Fallback to using the provided ID if user not found
+            logger.debug('get_or_create_direct_room_id: other user does not exist, returning provided id')
             return other_user_id
+        except Exception:
+            logger.debug('get_or_create_direct_room_id: unexpected error, see logs')
+            logger.exception('get_or_create_direct_room_id: unexpected error for other_user_id=%s user=%s', other_user_id, getattr(self.user, 'id', None))
+            raise
 
     async def leave_room(self, data):
         if self.room_group_name:
@@ -138,11 +176,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
         room_id = data.get('room_id')
 
         # Save message to database and get the actual chat room
-        chat_message, actual_room_id = await self.save_message(
-            message=message,
-            room_type=room_type,
-            room_id=room_id
-        )
+        try:
+            chat_message, actual_room_id = await self.save_message(
+                message=message,
+                room_type=room_type,
+                room_id=room_id
+            )
+        except Exception:
+            logger.exception('save_message failed for user=%s room_type=%s room_id=%s', getattr(self.user, 'id', None), room_type, room_id)
+            # Re-raise so test harness sees original error
+            raise
 
         # Determine the correct group name for broadcasting
         # This handles the case where the user sends a message before explicitly joining
@@ -169,25 +212,29 @@ class ChatConsumer(AsyncWebsocketConsumer):
             )
 
         # Broadcast to room
-        await self.channel_layer.group_send(
-            broadcast_group,
-            {
-                'type': 'chat_message',
-                'message': {
-                    'id': chat_message.id,
-                    'content': chat_message.content,
-                    'sender': {
-                        'id': self.user.id,
-                        'username': self.user.username,
-                        'avatar': self.user.avatar.url if self.user.avatar and hasattr(self.user.avatar, 'url') else None
-                    },
-                    'timestamp': chat_message.timestamp.isoformat(),
-                    'room_type': room_type,
-                    'room_id': actual_room_id,
-                    'attachments': []  # WebSocket messages don't have attachments (sent via HTTP)
+        try:
+            await self.channel_layer.group_send(
+                broadcast_group,
+                {
+                    'type': 'chat_message',
+                    'message': {
+                        'id': chat_message.id,
+                        'content': chat_message.content,
+                        'sender': {
+                            'id': self.user.id,
+                            'username': self.user.username,
+                            'avatar': self.user.avatar.url if self.user.avatar and hasattr(self.user.avatar, 'url') else None
+                        },
+                        'timestamp': chat_message.timestamp.isoformat(),
+                        'room_type': room_type,
+                        'room_id': actual_room_id,
+                        'attachments': []  # WebSocket messages don't have attachments (sent via HTTP)
+                    }
                 }
-            }
-        )
+            )
+        except Exception:
+            logger.exception('channel_layer.group_send failed for group=%s user=%s', broadcast_group, getattr(self.user, 'id', None))
+            raise
 
     @database_sync_to_async
     def save_message(self, message, room_type, room_id):
@@ -290,14 +337,30 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         User = get_user_model()  # safe inside method
         self.user = None
         self.user_group_name = None
-        query_string = self.scope['query_string'].decode()
-        token = query_string.split('token=')[-1] if 'token=' in query_string else ''
-        
+        # Prefer token from Sec-WebSocket-Protocol (subprotocols), then HttpOnly cookie, then fall back to query string
+        subprotocols = self.scope.get('subprotocols', []) or []
+        token = subprotocols[0] if len(subprotocols) > 0 else ''
+        if not token:
+            headers = dict((k.decode().lower(), v.decode()) for k, v in self.scope.get('headers', []))
+            cookie_header = headers.get('cookie', '')
+            if cookie_header:
+                try:
+                    from http.cookies import SimpleCookie
+                    simple = SimpleCookie()
+                    simple.load(cookie_header)
+                    if 'access' in simple:
+                        token = simple['access'].value
+                except Exception:
+                    token = ''
+        if not token:
+            query_string = self.scope['query_string'].decode()
+            token = query_string.split('token=')[-1] if 'token=' in query_string else ''
+
         logger.info(f"Notification WebSocket connect attempt from {self.scope.get('client', 'unknown')}")
 
         try:
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
-            user_id = int(payload['user_id'])  # Convert to int since JWT may have it as string
+            user_id = int(payload['user_id'])
             self.user = await database_sync_to_async(User.objects.get)(id=user_id)
             self.user_group_name = f'notifications_{self.user.id}'
             logger.info(f"Notification WebSocket authenticated for user {self.user.username} (id={user_id})")

@@ -10,7 +10,7 @@ interface WebSocketMessage {
 }
 
 export const useWebSocket = () => {
-  const { token } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
   const { addNotification } = useNotificationStore();
   const { addMessage, updateTypingStatus } = useChatStore();
   const socketRef = useRef<WebSocket | null>(null);
@@ -32,8 +32,8 @@ export const useWebSocket = () => {
   }, []);
 
   const connectChat = useCallback(() => {
-    if (!token) {
-      console.log('No token, skipping WebSocket connection');
+    if (!isAuthenticated) {
+      console.log('Not authenticated, skipping WebSocket connection');
       return;
     }
     
@@ -50,10 +50,11 @@ export const useWebSocket = () => {
     }
 
     const baseUrl = getWsBaseUrl();
-    const wsUrl = `${baseUrl}/ws/chat/?token=${token}`;
-    console.log('Connecting to Chat WebSocket:', wsUrl);
+    const wsUrl = `${baseUrl}/ws/chat/`;
+    console.log('Connecting to Chat WebSocket (cookies):', wsUrl);
     
     setChatStatus('connecting');
+    // Rely on HttpOnly cookies for auth; don't send token in JS/subprotocol
     const socket = new WebSocket(wsUrl);
 
     socket.onopen = () => {
@@ -105,8 +106,8 @@ export const useWebSocket = () => {
       setChatStatus('disconnected');
       socketRef.current = null;
       
-      // Reconnect after delay if we have a token
-      if (token) {
+      // Reconnect after delay if still authenticated
+      if (isAuthenticated) {
         reconnectTimeoutRef.current = setTimeout(connectChat, 3000);
       }
     };
@@ -116,11 +117,11 @@ export const useWebSocket = () => {
     };
 
     socketRef.current = socket;
-  }, [token, getWsBaseUrl, addMessage, updateTypingStatus]);
+  }, [isAuthenticated, getWsBaseUrl, addMessage, updateTypingStatus]);
 
   const connectNotifications = useCallback(() => {
-    if (!token) {
-      console.log('No token, skipping Notification WebSocket connection');
+    if (!isAuthenticated) {
+      console.log('Not authenticated, skipping Notification WebSocket connection');
       return;
     }
     
@@ -137,10 +138,11 @@ export const useWebSocket = () => {
     }
 
     const baseUrl = getWsBaseUrl();
-    const wsUrl = `${baseUrl}/ws/notifications/?token=${token}`;
-    console.log('Connecting to Notification WebSocket:', wsUrl);
+    const wsUrl = `${baseUrl}/ws/notifications/`;
+    console.log('Connecting to Notification WebSocket (cookies):', wsUrl);
     
     setNotificationStatus('connecting');
+    // Rely on HttpOnly cookies for auth; don't send token in JS/subprotocol
     const socket = new WebSocket(wsUrl);
 
     socket.onopen = () => {
@@ -165,8 +167,8 @@ export const useWebSocket = () => {
       setNotificationStatus('disconnected');
       notificationSocketRef.current = null;
       
-      // Reconnect after delay if we have a token
-      if (token) {
+      // Reconnect after delay if still authenticated
+      if (isAuthenticated) {
         notificationReconnectTimeoutRef.current = setTimeout(connectNotifications, 3000);
       }
     };
@@ -176,11 +178,11 @@ export const useWebSocket = () => {
     };
 
     notificationSocketRef.current = socket;
-  }, [token, getWsBaseUrl, addNotification]);
+  }, [isAuthenticated, getWsBaseUrl, addNotification]);
 
-  // Connect when token is available
+  // Connect when authentication state is available
   useEffect(() => {
-    if (token) {
+    if (isAuthenticated) {
       connectChat();
       connectNotifications();
     }
@@ -202,7 +204,7 @@ export const useWebSocket = () => {
         notificationSocketRef.current = null;
       }
     };
-  }, [token]); // Only depend on token, not on the connect functions
+  }, [isAuthenticated]); // Only depend on authentication state, not on the connect functions
 
   const joinRoom = useCallback((roomType: string, roomId: number) => {
     if (socketRef.current?.readyState === WebSocket.OPEN) {

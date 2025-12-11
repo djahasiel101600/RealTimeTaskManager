@@ -5,18 +5,23 @@ from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import Task, TaskAttachment, ActivityLog, Comment
+from .models import Task, TaskAttachment, ActivityLog, Comment, Status, TaskAssignment
 from .serializers import (
     TaskSerializer, TaskUpdateSerializer, 
     TaskAttachmentSerializer, ActivityLogSerializer,
-    CommentSerializer
+    CommentSerializer, StatusUpdateSerializer
 )
+from .serializers import TaskAssignmentSerializer
 from .permissions import (
     TaskPermissions, TaskAttachmentPermissions,
     CanUpdateTaskStatus, CanAttachFiles, CanViewActivityLogs
 )
 from apps.notifications.models import send_notification_ws
 import logging
+from django.conf import settings
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
+from apps.chat.models import ChatRoom, Message as ChatMessage
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -37,8 +42,9 @@ class TaskViewSet(viewsets.ModelViewSet):
         return TaskSerializer
     
     def get_queryset(self):
+        from django.db.models import Q
         user = self.request.user
-        
+
         if user.role == 'supervisor':
             return Task.objects.all()
         elif user.role == 'atl':
@@ -47,8 +53,8 @@ class TaskViewSet(viewsets.ModelViewSet):
                 assigned_to__role__in=['clerk', 'atm']
             ).distinct()
         else:
-            # Regular users can only see tasks assigned to them
-            return Task.objects.filter(assigned_to=user)
+            # Regular users can see tasks they created or are assigned to
+            return Task.objects.filter(Q(assigned_to=user) | Q(created_by=user)).distinct()
     
     def perform_create(self, serializer):
         task = serializer.save(created_by=self.request.user)
@@ -126,16 +132,127 @@ class TaskViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(task)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def propose_assignment(self, request, pk=None):
+        """Propose assignment(s) to user(s). Users must accept to become assigned."""
+        task = self.get_object()
+        user_ids = request.data.get('user_ids') or []
+        if not user_ids:
+            return Response({'error': 'user_ids is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        created = []
+        for uid in user_ids:
+            try:
+                user = User.objects.get(id=uid)
+            except User.DoesNotExist:
+                continue
+            # Create or get pending assignment
+            assignment, created_flag = task.assignments.get_or_create(
+                user=user,
+                defaults={'assigned_by': request.user}
+            )
+            if created_flag:
+                created.append(assignment.id)
+                # Notify user via websocket
+                send_notification_ws(user.id, {
+                    'type': 'assignment_proposed',
+                    'title': 'Task Assignment Proposed',
+                    'message': f'You have been proposed for task: {task.title}',
+                    'task_id': task.id,
+                    'assignment_id': assignment.id,
+                })
+
+        self.create_activity_log(task, 'assignment_proposed', {'user_ids': user_ids})
+        return Response({'created_assignment_ids': created})
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def respond_assignment(self, request, pk=None):
+        """User accepts or rejects a pending assignment. Payload: assignment_id, action='accept'|'reject', optional reason."""
+        # Use a direct lookup for task because the requester (the proposed user)
+        # may not yet be in the Task queryset (not assigned or creator). We still
+        # enforce assignment ownership when fetching the assignment below.
+        from django.shortcuts import get_object_or_404
+        task = get_object_or_404(Task, pk=pk)
+        assignment_id = request.data.get('assignment_id')
+        action_choice = request.data.get('action')
+        reason = request.data.get('reason')
+
+        if not assignment_id or action_choice not in ('accept', 'reject'):
+            return Response({'error': 'assignment_id and action are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            assignment = task.assignments.get(id=assignment_id, user=request.user)
+        except Exception:
+            return Response({'error': 'Assignment not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if assignment.status != 'pending':
+            return Response({'error': 'Assignment already responded'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if action_choice == 'accept':
+            assignment.status = 'accepted'
+            assignment.responded_at = timezone.now()
+            assignment.reason = reason or ''
+            assignment.save()
+            # Add user to task.assigned_to
+            task.assigned_to.add(request.user)
+            # Create activity log and notify
+            self.create_activity_log(task, 'assignment_accepted', {'assignment_id': assignment.id})
+            send_notification_ws(assignment.assigned_by.id if assignment.assigned_by else request.user.id, {
+                'type': 'assignment_accepted',
+                'title': 'Assignment Accepted',
+                'message': f'{request.user.username} accepted assignment for task: {task.title}',
+                'task_id': task.id,
+                'assignment_id': assignment.id,
+            })
+        else:
+            assignment.status = 'rejected'
+            assignment.responded_at = timezone.now()
+            assignment.reason = reason or ''
+            assignment.save()
+            self.create_activity_log(task, 'assignment_rejected', {'assignment_id': assignment.id, 'reason': reason})
+            send_notification_ws(assignment.assigned_by.id if assignment.assigned_by else request.user.id, {
+                'type': 'assignment_rejected',
+                'title': 'Assignment Rejected',
+                'message': f'{request.user.username} rejected assignment for task: {task.title}',
+                'task_id': task.id,
+                'assignment_id': assignment.id,
+            })
+
+        return Response({'status': assignment.status})
     
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, CanUpdateTaskStatus])
     def update_status(self, request, pk=None):
         """Update task status"""
         task = self.get_object()
-        new_status = request.data.get('status')
+        # Validate input with serializer
+        serializer = StatusUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        new_status = serializer.validated_data.get('status')
+        # Optional reason for status change (required for critical transitions)
+        reason = serializer.validated_data.get('reason')
         
-        if new_status not in dict(Task.Status.choices):
+        if new_status not in dict(Status.choices):
             return Response(
                 {'error': 'Invalid status'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Enforce allowed transitions
+        try:
+            if not task.can_transition(new_status):
+                return Response(
+                    {'error': f'Invalid status transition from {task.status} to {new_status}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        except Exception:
+            # If can_transition is not available or errors, fall back to permissive behavior
+            pass
+        # Require a reason for critical transitions (cancelled, done)
+        critical_statuses = ['cancelled', 'done']
+        if new_status in critical_statuses and not reason:
+            return Response(
+                {'error': 'A reason is required for this status change'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -148,10 +265,14 @@ class TaskViewSet(viewsets.ModelViewSet):
         task.save()
         
         # Create activity log
-        self.create_activity_log(task, 'status_changed', {
+        details = {
             'old_status': old_status,
-            'new_status': new_status
-        })
+            'new_status': new_status,
+        }
+        if reason:
+            details['reason'] = reason
+
+        self.create_activity_log(task, 'status_changed', details)
         
         # Send notification to all assigned users
         for user in task.assigned_to.all():
@@ -163,6 +284,54 @@ class TaskViewSet(viewsets.ModelViewSet):
                 'old_status': old_status,
                 'new_status': new_status,
             })
+        # Create a system chat message in the task chat room and broadcast it
+        try:
+            room = ChatRoom.objects.filter(room_type='task', task=task).first()
+            if room:
+                # Create a persisted chat message so frontend receives an id
+                system_content = f"Status changed to {new_status} by {request.user.username}"
+                if reason:
+                    system_content = f"{system_content}. Reason: {reason}"
+                chat_msg = ChatMessage.objects.create(
+                    room=room,
+                    sender=request.user,
+                    content=system_content,
+                    is_read=True
+                )
+
+                # Broadcast message via channel layer similar to MessageViewSet
+                channel_layer = get_channel_layer()
+                if channel_layer:
+                    backend_url = getattr(settings, 'BACKEND_URL', '')
+                    avatar_url = None
+                    sender = request.user
+                    if getattr(sender, 'avatar', None) and hasattr(sender.avatar, 'url'):
+                        if backend_url:
+                            avatar_url = f"{backend_url.rstrip('/')}{sender.avatar.url}"
+                        else:
+                            avatar_url = request.build_absolute_uri(sender.avatar.url)
+
+                    async_to_sync(channel_layer.group_send)(
+                        f'task_{room.id}',
+                        {
+                            'type': 'chat_message',
+                            'message': {
+                                'id': chat_msg.id,
+                                'content': chat_msg.content,
+                                'sender': {
+                                    'id': sender.id,
+                                    'username': sender.username,
+                                    'avatar': avatar_url,
+                                },
+                                'timestamp': chat_msg.timestamp.isoformat(),
+                                'room_type': 'task',
+                                'room_id': room.id,
+                                'attachments': [],
+                            }
+                        }
+                    )
+        except Exception as e:
+            logger.error(f"Failed to create/broadcast task status chat message: {e}")
         
         serializer = self.get_serializer(task)
         return Response(serializer.data)
@@ -415,3 +584,32 @@ class TaskAttachmentViewSet(viewsets.ModelViewSet):
         else:
             ip = self.request.META.get('REMOTE_ADDR')
         return ip
+
+
+class TaskAssignmentViewSet(viewsets.ReadOnlyModelViewSet):
+    """List and retrieve task assignment proposals.
+
+    - Normal users see only their own proposals.
+    - Supervisors can list proposals for any user via `?user_id=` and filter by `?status=`.
+    """
+    queryset = TaskAssignment.objects.all()
+    serializer_class = TaskAssignmentSerializer
+    # Return full lists (no pagination) for assignment proposals to match test expectations
+    pagination_class = None
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        from .models import TaskAssignment
+        user = self.request.user
+        qs = TaskAssignment.objects.all()
+        if user.role == 'supervisor':
+            user_id = self.request.query_params.get('user_id')
+            if user_id:
+                qs = qs.filter(user_id=user_id)
+            status_param = self.request.query_params.get('status')
+            if status_param:
+                qs = qs.filter(status=status_param)
+            return qs.order_by('-created_at')
+
+        # regular users only see their own assignment proposals
+        return qs.filter(user=user).order_by('-created_at')

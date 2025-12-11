@@ -4,7 +4,6 @@ import type { User } from '@/types';
 
 interface AuthState {
   user: User | null;
-  token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
@@ -12,7 +11,6 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   setUser: (user: User) => void;
-  setToken: (token: string, user: User) => void;
   clearError: () => void;
 }
 
@@ -20,7 +18,6 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       user: null,
-      token: null,
       isAuthenticated: false,
       isLoading: false,
       error: null,
@@ -33,7 +30,6 @@ export const useAuthStore = create<AuthState>()(
           const response = await authService.login(email, password);
           set({
             user: response.user,
-            token: response.access,
             isAuthenticated: true,
             isLoading: false,
           });
@@ -51,7 +47,6 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         set({
           user: null,
-          token: null,
           isAuthenticated: false,
         });
         localStorage.removeItem('auth-storage');
@@ -59,18 +54,11 @@ export const useAuthStore = create<AuthState>()(
       
       setUser: (user) => set({ user }),
       
-      setToken: (token, user) => set({ 
-        token, 
-        user, 
-        isAuthenticated: true 
-      }),
-      
       clearError: () => set({ error: null }),
     }),
     {
       name: 'auth-storage',
       partialize: (state) => ({ 
-        token: state.token,
         user: state.user,
         isAuthenticated: state.isAuthenticated 
       }),

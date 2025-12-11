@@ -8,6 +8,9 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { AuthLayout } from '@/components/layout/AuthLayout';
 import { LoginPage } from '@/pages/LoginPage';
 import { RegisterPage } from '@/pages/RegisterPage';
+import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
+import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
+import { VerifyEmailPage } from '@/pages/VerifyEmailPage';
 import { TaskDashboard } from '@/components/TaskDashboard';
 import { TaskDetailPage } from '@/pages/TaskDetailPage';
 import { ChatPage } from '@/pages/ChatPage';
@@ -70,6 +73,10 @@ const AppContent: React.FC = () => {
         <Route path="/" element={<Navigate to="/tasks" replace />} />
         <Route path="/login" element={<AuthLayout><LoginPage /></AuthLayout>} />
         <Route path="/register" element={<AuthLayout><RegisterPage /></AuthLayout>} />
+        <Route path="/forgot-password" element={<AuthLayout><ForgotPasswordPage /></AuthLayout>} />
+        <Route path="/reset-password/:uid/:token" element={<AuthLayout><ResetPasswordPage /></AuthLayout>} />
+        <Route path="/verify-email/:token" element={<AuthLayout><VerifyEmailPage /></AuthLayout>} />
+        <Route path="/verify-email" element={<AuthLayout><VerifyEmailPage /></AuthLayout>} />
         
         {/* Protected routes */}
         <Route path="/tasks" element={

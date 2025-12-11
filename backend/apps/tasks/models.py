@@ -51,6 +51,20 @@ class Task(models.Model):
     def __str__(self):
         return self.title
 
+    # Define allowed state transitions for tasks
+    ALLOWED_TRANSITIONS = {
+        'todo': ['in_progress', 'cancelled'],
+        'in_progress': ['review', 'done', 'cancelled'],
+        'review': ['in_progress', 'done', 'cancelled'],
+        'done': [],
+        'cancelled': [],
+    }
+
+    def can_transition(self, new_status: str) -> bool:
+        """Return True if the task can transition from current status to new_status."""
+        allowed = self.ALLOWED_TRANSITIONS.get(self.status, [])
+        return new_status in allowed
+
 
 class TaskAttachment(models.Model):
     task = models.ForeignKey(
@@ -110,3 +124,40 @@ class ActivityLog(models.Model):
     
     class Meta:
         ordering = ['-timestamp']
+
+
+class AssignmentStatus(models.TextChoices):
+    PENDING = 'pending', _('Pending')
+    ACCEPTED = 'accepted', _('Accepted')
+    REJECTED = 'rejected', _('Rejected')
+
+
+class TaskAssignment(models.Model):
+    """Represents a proposed assignment for a user to a task that they can accept or reject."""
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        related_name='assignments'
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='task_assignments'
+    )
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='made_task_assignments'
+    )
+    status = models.CharField(max_length=20, choices=AssignmentStatus.choices, default=AssignmentStatus.PENDING)
+    reason = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    responded_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ('task', 'user')
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Assignment {self.user_id} -> Task {self.task_id} ({self.status})"

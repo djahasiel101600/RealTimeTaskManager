@@ -10,7 +10,7 @@ from rest_framework import status, permissions, generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
-from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from apps.users.serializers import UserRegistrationSerializer
@@ -116,7 +116,52 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                 logger.info(f"User {user.id} logged in successfully")
             except User.DoesNotExist:
                 pass
-        
+        # If tokens present in response, also set them as HttpOnly cookies
+        try:
+            access = response.data.get('access')
+            refresh = response.data.get('refresh')
+            if access:
+                response.set_cookie(
+                    'access', access,
+                    httponly=True,
+                    secure=not settings.DEBUG,
+                    samesite='Lax',
+                    path='/',
+                    max_age=int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds())
+                )
+            if refresh:
+                response.set_cookie(
+                    'refresh', refresh,
+                    httponly=True,
+                    secure=not settings.DEBUG,
+                    samesite='Lax',
+                    path='/',
+                    max_age=int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds())
+                )
+        except Exception:
+            # Don't fail login if cookie-setting fails
+            logger.exception('Failed to set auth cookies on login')
+
+        return response
+
+
+class CustomTokenRefreshView(TokenRefreshView):
+    """Refresh JWT and set access cookie."""
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        try:
+            access = response.data.get('access')
+            if access:
+                response.set_cookie(
+                    'access', access,
+                    httponly=True,
+                    secure=not settings.DEBUG,
+                    samesite='Lax',
+                    path='/',
+                    max_age=int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds())
+                )
+        except Exception:
+            logger.exception('Failed to set access cookie on refresh')
         return response
 
 
