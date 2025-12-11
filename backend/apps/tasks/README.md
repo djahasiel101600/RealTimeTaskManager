@@ -34,3 +34,30 @@ Notes for frontend implementers:
 
 - Include `reason` when performing transitions that finalize or cancel work.
 - The `update_status` endpoint uses a `StatusUpdateSerializer` server-side to validate inputs.
+
+## System chat messages
+
+The backend creates "system" chat messages (persisted `Message` rows in the `chat` app) for important task events and broadcasts them to the task chat room group `task_{room.id}`. These system messages are created by `TaskViewSet.create_system_message` and are used for UI activity feeds and real-time updates.
+
+Events that create system messages:
+
+- Assignment changes (`assign`, `bulk_assign`, proposals/accepts/rejects)
+- File attachments (`upload_attachment`, attachments POST)
+- Status changes (`update_status` — includes reason for critical transitions)
+
+Payload shape (websocket broadcast):
+
+- `id` (int): the chat message DB id
+- `content` (string): human-readable system text (e.g. "Assigned: alice")
+- `sender` (object|null): sender info when available — `{id, username, avatar}` or `null` for system-only messages
+- `timestamp` (ISO 8601 string): message creation time
+- `room_type` (string): always `'task'` for these messages
+- `room_id` (int): the chat room id
+- `attachments` (array): empty list for system messages (present for consistency)
+
+Behavioral notes:
+
+- System message creation is best-effort: failures to persist or broadcast are logged but do not fail the primary API request.
+- Tests mock `channel_layer.group_send` to assert both DB creation of `Message` rows and that the broadcast payload matches the expected shape.
+
+If you add new system message consumers or change the payload, update the tests in `backend/apps/tasks/tests.py` accordingly.
