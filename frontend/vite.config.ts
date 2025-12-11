@@ -4,6 +4,7 @@ import path from "path"
 import tailwindcss from "@tailwindcss/vite"
 
 // https://vite.dev/config/
+// Cast to `any` to allow Vitest `test` config alongside Vite options
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
@@ -38,5 +39,11 @@ export default defineConfig({
       },
     },
   },
+  test: {
+    setupFiles: 'src/setupTests.ts',
+    environment: 'jsdom',
+    globals: true,
+    mockReset: true,
+  }
 
-})
+} as any)

@@ -20,7 +20,7 @@ def send_deadline_reminders(self):
     Runs hourly via Celery Beat.
     """
     from apps.tasks.models import Task
-    from apps.notifications.models import Notification
+    from apps.notifications.models import Notification, send_notification_ws
     
     now = timezone.now()
     
@@ -54,27 +54,22 @@ def send_deadline_reminders(self):
         # Create notification
         notification = Notification.objects.create(
             user=task.assigned_to,
+            type='deadline',
             title='Deadline Reminder',
             message=f'Task "{task.title}" is due in {hours_left} hours!',
-            notification_type='deadline',
+            data={'task_id': task.id}
         )
-        
-        # Send real-time notification via WebSocket
+
+        # Send real-time notification via centralized helper so it matches consumers
         try:
-            async_to_sync(channel_layer.group_send)(
-                f"notifications_{task.assigned_to.id}",
-                {
-                    'type': 'notification_message',
-                    'notification': {
-                        'id': notification.id,
-                        'title': notification.title,
-                        'message': notification.message,
-                        'notification_type': notification.notification_type,
-                        'is_read': notification.is_read,
-                        'created_at': notification.created_at.isoformat(),
-                    }
-                }
-            )
+            send_notification_ws(task.assigned_to.id, {
+                'id': notification.id,
+                'title': notification.title,
+                'message': notification.message,
+                'notification_type': notification.type,
+                'is_read': notification.is_read,
+                'created_at': notification.created_at.isoformat(),
+            })
         except Exception as e:
             logger.warning(f"Failed to send WebSocket notification: {e}")
         
@@ -117,7 +112,7 @@ def mark_overdue_tasks(self):
     Runs daily at 8 AM via Celery Beat.
     """
     from apps.tasks.models import Task
-    from apps.notifications.models import Notification
+    from apps.notifications.models import Notification, send_notification_ws
     
     now = timezone.now()
     channel_layer = get_channel_layer()
@@ -143,9 +138,10 @@ def mark_overdue_tasks(self):
         # Create notification
         notification = Notification.objects.create(
             user=task.assigned_to,
+            type='overdue',
             title='Task Overdue',
             message=f'Task "{task.title}" is now overdue!',
-            notification_type='overdue',
+            data={'task_id': task.id}
         )
         
         # Also notify the task creator
@@ -159,20 +155,14 @@ def mark_overdue_tasks(self):
         
         # Send real-time notification
         try:
-            async_to_sync(channel_layer.group_send)(
-                f"notifications_{task.assigned_to.id}",
-                {
-                    'type': 'notification_message',
-                    'notification': {
-                        'id': notification.id,
-                        'title': notification.title,
-                        'message': notification.message,
-                        'notification_type': notification.notification_type,
-                        'is_read': notification.is_read,
-                        'created_at': notification.created_at.isoformat(),
-                    }
-                }
-            )
+            send_notification_ws(task.assigned_to.id, {
+                'id': notification.id,
+                'title': notification.title,
+                'message': notification.message,
+                'notification_type': notification.type,
+                'is_read': notification.is_read,
+                'created_at': notification.created_at.isoformat(),
+            })
         except Exception as e:
             logger.warning(f"Failed to send WebSocket notification: {e}")
         
@@ -188,7 +178,7 @@ def send_task_notification(user_id: int, title: str, message: str, notification_
     Helper task to send a notification to a specific user.
     Can be called from anywhere in the application.
     """
-    from apps.notifications.models import Notification
+    from apps.notifications.models import Notification, send_notification_ws
     from django.contrib.auth import get_user_model
     
     User = get_user_model()
@@ -202,28 +192,22 @@ def send_task_notification(user_id: int, title: str, message: str, notification_
     # Create notification
     notification = Notification.objects.create(
         user=user,
+        type=notification_type,
         title=title,
         message=message,
-        notification_type=notification_type,
+        data={},
     )
-    
-    # Send via WebSocket
-    channel_layer = get_channel_layer()
+
+    # Send via centralized WebSocket helper so the consumer receives the expected event
     try:
-        async_to_sync(channel_layer.group_send)(
-            f"notifications_{user_id}",
-            {
-                'type': 'notification_message',
-                'notification': {
-                    'id': notification.id,
-                    'title': notification.title,
-                    'message': notification.message,
-                    'notification_type': notification.notification_type,
-                    'is_read': notification.is_read,
-                    'created_at': notification.created_at.isoformat(),
-                }
-            }
-        )
+        send_notification_ws(user_id, {
+            'id': notification.id,
+            'title': notification.title,
+            'message': notification.message,
+            'notification_type': notification.type,
+            'is_read': notification.is_read,
+            'created_at': notification.created_at.isoformat(),
+        })
     except Exception as e:
         logger.warning(f"Failed to send WebSocket notification: {e}")
     

@@ -323,7 +323,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ roomId, roomType }) => {
         ) : (
           <div className="space-y-4">
             {displayMessages.map((msg: any) => {
-              const isOwnMessage = msg.sender.id === user?.id;
+              // Render system messages with a distinct, centered style
+              if (msg.is_system) {
+                return (
+                  <div key={msg.id} className="flex justify-center">
+                    <div className="text-center text-xs text-slate-500 bg-slate-50 px-3 py-1 rounded-md">
+                      <div className="mb-1">{msg.content}</div>
+                      <div className="text-[11px] text-slate-400">{format(new Date(msg.timestamp), 'HH:mm')}</div>
+                    </div>
+                  </div>
+                );
+              }
+
+              const isOwnMessage = msg.sender?.id === user?.id;
               const isPending = msg.isPending;
               return (
                 <div
@@ -338,14 +350,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ roomId, roomType }) => {
                     "h-8 w-8 shrink-0 ring-2",
                     isOwnMessage ? "ring-violet-200" : "ring-slate-100"
                   )}>
-                    <AvatarImage src={msg.sender.avatar} />
+                    <AvatarImage src={msg.sender?.avatar} />
                     <AvatarFallback className={cn(
                       "font-medium text-white",
                       isOwnMessage 
                         ? "bg-linear-to-br from-violet-500 to-fuchsia-500" 
                         : "bg-linear-to-br from-slate-400 to-slate-500"
                     )}>
-                      {msg.sender.username?.charAt(0).toUpperCase()}
+                      {msg.sender?.username?.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div
@@ -364,7 +376,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ roomId, roomType }) => {
                         "font-semibold text-sm",
                         isOwnMessage ? "text-white/90" : "text-slate-700"
                       )}>
-                        {isOwnMessage ? 'You' : msg.sender.username}
+                        {isOwnMessage ? 'You' : msg.sender?.username}
                       </span>
                       <span className={cn(
                         "text-xs",

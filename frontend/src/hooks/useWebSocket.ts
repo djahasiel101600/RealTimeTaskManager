@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { useAuthStore } from '../stores/auth.store';
 import { useNotificationStore } from '../stores/notification.store';
 import { useChatStore } from '../stores/chat.store';
+import { getAccessToken } from '../services/api';
 import type { Message, Notification } from '../types';
 
 interface WebSocketMessage {
@@ -15,6 +16,8 @@ export const useWebSocket = () => {
   const { addMessage, updateTypingStatus } = useChatStore();
   const socketRef = useRef<WebSocket | null>(null);
   const notificationSocketRef = useRef<WebSocket | null>(null);
+  const chatReconnectAttemptsRef = useRef<number>(0);
+  const notificationReconnectAttemptsRef = useRef<number>(0);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const notificationReconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [chatStatus, setChatStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
@@ -51,15 +54,18 @@ export const useWebSocket = () => {
 
     const baseUrl = getWsBaseUrl();
     const wsUrl = `${baseUrl}/ws/chat/`;
-    console.log('Connecting to Chat WebSocket (cookies):', wsUrl);
+    const token = getAccessToken();
+    console.log('Connecting to Chat WebSocket', wsUrl, token ? '(using subprotocol token)' : '(cookies)');
     
     setChatStatus('connecting');
-    // Rely on HttpOnly cookies for auth; don't send token in JS/subprotocol
-    const socket = new WebSocket(wsUrl);
+    // Prefer using in-memory access token as WS subprotocol; fallback to cookie-based handshake
+    const socket = token ? new WebSocket(wsUrl, token) : new WebSocket(wsUrl);
 
     socket.onopen = () => {
       console.log('Chat WebSocket connected');
       setChatStatus('connected');
+      // reset reconnect attempts on success
+      chatReconnectAttemptsRef.current = 0;
     };
 
     socket.onmessage = (event) => {
@@ -79,8 +85,24 @@ export const useWebSocket = () => {
               room: { id: wsMessage.room_id, room_type: wsMessage.room_type } as any,
               attachments: wsMessage.attachments || [],
               is_read: false,
+              is_system: !!wsMessage.is_system,
             };
             addMessage(transformedMessage);
+            break;
+          case 'system_message':
+            // System-level messages (from backend) follow same payload but may be flagged
+            const sys = message.data;
+            const transformedSys: Message = {
+              id: sys.id,
+              content: sys.content,
+              sender: sys.sender || { id: 0, username: 'System', email: '', role: 'clerk', is_online: false } as any,
+              timestamp: sys.timestamp,
+              room: { id: sys.room_id, room_type: sys.room_type } as any,
+              attachments: sys.attachments || [],
+              is_read: false,
+              is_system: true,
+            };
+            addMessage(transformedSys);
             break;
           case 'typing':
             updateTypingStatus(
@@ -106,9 +128,14 @@ export const useWebSocket = () => {
       setChatStatus('disconnected');
       socketRef.current = null;
       
-      // Reconnect after delay if still authenticated
+      // Reconnect with exponential backoff if still authenticated
       if (isAuthenticated) {
-        reconnectTimeoutRef.current = setTimeout(connectChat, 3000);
+        chatReconnectAttemptsRef.current += 1;
+        const attempt = chatReconnectAttemptsRef.current;
+        const jitter = Math.floor(Math.random() * 300);
+        const delay = Math.min(30000, 1000 * Math.pow(2, Math.min(attempt, 6))) + jitter;
+        reconnectTimeoutRef.current = setTimeout(connectChat, delay);
+        console.info(`Chat WS reconnect attempt ${attempt} scheduled in ${delay}ms`);
       }
     };
 
@@ -139,15 +166,17 @@ export const useWebSocket = () => {
 
     const baseUrl = getWsBaseUrl();
     const wsUrl = `${baseUrl}/ws/notifications/`;
-    console.log('Connecting to Notification WebSocket (cookies):', wsUrl);
+    const token = getAccessToken();
+    console.log('Connecting to Notification WebSocket', wsUrl, token ? '(using subprotocol token)' : '(cookies)');
     
     setNotificationStatus('connecting');
-    // Rely on HttpOnly cookies for auth; don't send token in JS/subprotocol
-    const socket = new WebSocket(wsUrl);
+    const socket = token ? new WebSocket(wsUrl, token) : new WebSocket(wsUrl);
 
     socket.onopen = () => {
       console.log('Notification WebSocket connected');
       setNotificationStatus('connected');
+      // reset reconnect attempts on success
+      notificationReconnectAttemptsRef.current = 0;
     };
 
     socket.onmessage = (event) => {
@@ -167,9 +196,14 @@ export const useWebSocket = () => {
       setNotificationStatus('disconnected');
       notificationSocketRef.current = null;
       
-      // Reconnect after delay if still authenticated
+      // Reconnect with exponential backoff if still authenticated
       if (isAuthenticated) {
-        notificationReconnectTimeoutRef.current = setTimeout(connectNotifications, 3000);
+        notificationReconnectAttemptsRef.current += 1;
+        const attempt = notificationReconnectAttemptsRef.current;
+        const jitter = Math.floor(Math.random() * 300);
+        const delay = Math.min(30000, 1000 * Math.pow(2, Math.min(attempt, 6))) + jitter;
+        notificationReconnectTimeoutRef.current = setTimeout(connectNotifications, delay);
+        console.info(`Notification WS reconnect attempt ${attempt} scheduled in ${delay}ms`);
       }
     };
 

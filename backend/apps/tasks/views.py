@@ -72,6 +72,7 @@ class TaskViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         old_task = self.get_object()
         old_status = old_task.status
+        old_due = getattr(old_task, 'due_date', None)
         old_assigned = set(old_task.assigned_to.values_list('id', flat=True))
         
         task = serializer.save()
@@ -101,6 +102,80 @@ class TaskViewSet(viewsets.ModelViewSet):
                 'message': f'You have been assigned to task: {task.title}',
                 'task_id': task.id,
             })
+
+        # Create a system message for due date changes
+        try:
+            new_due = getattr(task, 'due_date', None)
+            if old_due != new_due:
+                # human-readable content
+                content = f"Due date changed to {new_due.isoformat() if new_due else 'none'} by {self.request.user.username}"
+                self.create_system_message(task, content)
+        except Exception:
+            logger.exception('Failed to create system message for due date change')
+
+    def create_system_message(self, task, content):
+        """Create a persisted system chat message in the task's room and broadcast it.
+
+        Returns the created ChatMessage or None on failure.
+        """
+        try:
+            room = ChatRoom.objects.filter(room_type='task', task=task).first()
+            if not room:
+                return None
+
+            # Use request.user when available, otherwise fall back to None
+            sender = getattr(self, 'request', None) and getattr(self.request, 'user', None)
+
+            chat_msg = ChatMessage.objects.create(
+                room=room,
+                sender=sender,
+                content=content,
+                is_read=True
+            )
+
+            # Build sender dict for websocket payload
+            backend_url = getattr(settings, 'BACKEND_URL', '')
+            avatar_url = None
+            if sender and getattr(sender, 'avatar', None) and hasattr(sender.avatar, 'url'):
+                if backend_url:
+                    avatar_url = f"{backend_url.rstrip('/')}{sender.avatar.url}"
+                else:
+                    # request may be missing in some contexts
+                    try:
+                        avatar_url = self.request.build_absolute_uri(sender.avatar.url)
+                    except Exception:
+                        avatar_url = None
+
+            sender_dict = None
+            if sender:
+                sender_dict = {
+                    'id': sender.id,
+                    'username': sender.username,
+                    'avatar': avatar_url,
+                }
+
+            channel_layer = get_channel_layer()
+            if channel_layer:
+                async_to_sync(channel_layer.group_send)(
+                    f'task_{room.id}',
+                    {
+                        'type': 'chat_message',
+                        'message': {
+                            'id': chat_msg.id,
+                            'content': chat_msg.content,
+                            'sender': sender_dict,
+                            'timestamp': chat_msg.timestamp.isoformat(),
+                            'room_type': 'task',
+                            'room_id': room.id,
+                            'attachments': [],
+                        }
+                    }
+                )
+
+            return chat_msg
+        except Exception as e:
+            logger.error(f"Failed to create/broadcast system chat message for task {task.id}: {e}")
+            return None
     
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def assign(self, request, pk=None):
@@ -129,7 +204,19 @@ class TaskViewSet(viewsets.ModelViewSet):
             'user_ids': user_ids,
             'replace': request.data.get('replace', False)
         })
-        
+
+        # Create a system chat message for the assignment
+        try:
+            names = ', '.join([u.username for u in users]) if users else ''
+            if request.data.get('replace', False):
+                content = f"Assignments replaced: {names}"
+            else:
+                content = f"Assigned: {names}"
+            self.create_system_message(task, content)
+        except Exception:
+            # Don't fail the API if system message creation fails
+            logger.exception('Failed to create system message for assign')
+
         serializer = self.get_serializer(task)
         return Response(serializer.data)
 
@@ -205,6 +292,12 @@ class TaskViewSet(viewsets.ModelViewSet):
                 'task_id': task.id,
                 'assignment_id': assignment.id,
             })
+            # Create a system message announcing the acceptance
+            try:
+                content = f"{request.user.username} accepted assignment for task: {task.title}"
+                self.create_system_message(task, content)
+            except Exception:
+                logger.exception('Failed to create system message for assignment acceptance')
         else:
             assignment.status = 'rejected'
             assignment.responded_at = timezone.now()
@@ -218,6 +311,11 @@ class TaskViewSet(viewsets.ModelViewSet):
                 'task_id': task.id,
                 'assignment_id': assignment.id,
             })
+            try:
+                content = f"{request.user.username} rejected assignment for task: {task.title}"
+                self.create_system_message(task, content)
+            except Exception:
+                logger.exception('Failed to create system message for assignment rejection')
 
         return Response({'status': assignment.status})
     
@@ -286,50 +384,10 @@ class TaskViewSet(viewsets.ModelViewSet):
             })
         # Create a system chat message in the task chat room and broadcast it
         try:
-            room = ChatRoom.objects.filter(room_type='task', task=task).first()
-            if room:
-                # Create a persisted chat message so frontend receives an id
-                system_content = f"Status changed to {new_status} by {request.user.username}"
-                if reason:
-                    system_content = f"{system_content}. Reason: {reason}"
-                chat_msg = ChatMessage.objects.create(
-                    room=room,
-                    sender=request.user,
-                    content=system_content,
-                    is_read=True
-                )
-
-                # Broadcast message via channel layer similar to MessageViewSet
-                channel_layer = get_channel_layer()
-                if channel_layer:
-                    backend_url = getattr(settings, 'BACKEND_URL', '')
-                    avatar_url = None
-                    sender = request.user
-                    if getattr(sender, 'avatar', None) and hasattr(sender.avatar, 'url'):
-                        if backend_url:
-                            avatar_url = f"{backend_url.rstrip('/')}{sender.avatar.url}"
-                        else:
-                            avatar_url = request.build_absolute_uri(sender.avatar.url)
-
-                    async_to_sync(channel_layer.group_send)(
-                        f'task_{room.id}',
-                        {
-                            'type': 'chat_message',
-                            'message': {
-                                'id': chat_msg.id,
-                                'content': chat_msg.content,
-                                'sender': {
-                                    'id': sender.id,
-                                    'username': sender.username,
-                                    'avatar': avatar_url,
-                                },
-                                'timestamp': chat_msg.timestamp.isoformat(),
-                                'room_type': 'task',
-                                'room_id': room.id,
-                                'attachments': [],
-                            }
-                        }
-                    )
+            system_content = f"Status changed to {new_status} by {request.user.username}"
+            if reason:
+                system_content = f"{system_content}. Reason: {reason}"
+            self.create_system_message(task, system_content)
         except Exception as e:
             logger.error(f"Failed to create/broadcast task status chat message: {e}")
         
@@ -396,7 +454,14 @@ class TaskViewSet(viewsets.ModelViewSet):
                     'task_id': task.id,
                     'file_name': file.name,
                 })
-        
+
+        # Create a system chat message about the attachment
+        try:
+            content = f'File attached: {file.name} by {request.user.username}'
+            self.create_system_message(task, content)
+        except Exception:
+            logger.exception('Failed to create system message for attachment')
+
         serializer = TaskAttachmentSerializer(attachment)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
@@ -460,6 +525,13 @@ class TaskViewSet(viewsets.ModelViewSet):
                         'file_name': file.name,
                     })
             
+            # Create a system chat message about the attachment
+            try:
+                content = f'File attached: {file.name} by {request.user.username}'
+                self.create_system_message(task, content)
+            except Exception:
+                logger.exception('Failed to create system message for attachment (attachments POST)')
+
             serializer = TaskAttachmentSerializer(attachment)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
     
@@ -639,6 +711,15 @@ class TaskViewSet(viewsets.ModelViewSet):
                         'message': f'You were assigned to task: {task.title}',
                         'task_id': task.id,
                     })
+
+            # Add a system message per task indicating assignment change
+            try:
+                names = ', '.join([u.username for u in users])
+                content = f"Assigned: {names}"
+                for task in qs:
+                    self.create_system_message(task, content)
+            except Exception:
+                logger.exception('Failed to create system messages for bulk_assign')
 
             return Response({'assigned_task_ids': assigned_task_ids})
 

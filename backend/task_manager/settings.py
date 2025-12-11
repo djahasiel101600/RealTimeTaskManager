@@ -149,6 +149,13 @@ REST_FRAMEWORK = {
         'login': '5/minute',     # Login attempts: 5/minute
         'password_reset': '3/hour',  # Password reset: 3/hour
     },
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+  'TITLE': 'Task Manager API',
+  'DESCRIPTION': 'OpenAPI schema for the Task Manager backend',
+  'VERSION': '1.0.0',
 }
 
 # JWT Settings

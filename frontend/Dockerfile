@@ -9,8 +9,9 @@ COPY package*.json ./
 
 # Install dependencies (include devDependencies needed for build)
 # Using npm install instead of npm ci to handle package.json changes
-# RUN npm install --legacy-peer-deps
-RUN npm install
+# Prefer a legacy peer-deps install to avoid build-time peer conflicts
+# If you'd rather fix package versions, remove this and resolve peer deps in package.json
+RUN npm install --legacy-peer-deps
 
 # Copy source code
 COPY . .

@@ -17,6 +17,7 @@ import { ChatPage } from '@/pages/ChatPage';
 import { ProfilePage } from '@/pages/ProfilePage';
 import { UsersPage } from '@/pages/UsersPage';
 import { ActivityLogsPage } from '@/pages/ActivityLogsPage';
+import AssignmentProposalsPage from '@/pages/AssignmentProposalsPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
 // Protected route wrapper
@@ -137,6 +138,14 @@ const AppContent: React.FC = () => {
                 <ActivityLogsPage />
               </MainLayout>
             </RoleBasedRoute>
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/assignments/proposals" element={
+          <ProtectedRoute>
+            <MainLayout>
+              <AssignmentProposalsPage />
+            </MainLayout>
           </ProtectedRoute>
         } />
         

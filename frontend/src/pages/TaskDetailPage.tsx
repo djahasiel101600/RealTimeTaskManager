@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { 
@@ -36,6 +36,7 @@ import { useAuthStore } from '@/stores/auth.store';
 import { taskService, attachmentService, commentService, type Comment } from '@/services/api';
 import type { Task, TaskAttachment } from '@/types';
 import { cn } from '@/lib/utils';
+import ReasonDialog from '@/components/ReasonDialog';
 
 const statusConfig: Record<string, { label: string; color: string; bgColor: string }> = {
   todo: { label: 'To Do', color: 'text-slate-700', bgColor: 'bg-slate-100' },
@@ -117,9 +118,18 @@ export function TaskDetailPage() {
   const handleStatusChange = async (newStatus: string) => {
     if (!task || !id) return;
     
+    // Use modal flow for critical transitions
+    const critical = ['done', 'cancelled'];
+    if (critical.includes(newStatus)) {
+      // open modal to collect reason
+      setPendingStatus(newStatus);
+      setShowReason(true);
+      return;
+    }
+
     setIsChangingStatus(true);
     try {
-      const updatedTask = await taskService.update(parseInt(id), { status: newStatus });
+      const updatedTask = await taskService.updateTaskStatus(parseInt(id), newStatus);
       setTask(updatedTask);
     } catch (err) {
       console.error('Failed to update status:', err);
@@ -192,6 +202,26 @@ export function TaskDetailPage() {
   // Get user initials
   const getInitials = (username?: string) => {
     return username?.charAt(0).toUpperCase() || '?';
+  };
+
+  // Modal state for reason
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+  const [showReason, setShowReason] = useState(false);
+
+  const handleReasonConfirm = async (reason: string) => {
+    if (!pendingStatus || !id) return;
+    setShowReason(false);
+    setIsChangingStatus(true);
+    try {
+      const updatedTask = await taskService.updateTaskStatus(parseInt(id), pendingStatus, reason);
+      setTask(updatedTask);
+    } catch (err) {
+      console.error('Failed to update status:', err);
+      alert('Failed to update task status');
+    } finally {
+      setIsChangingStatus(false);
+      setPendingStatus(null);
+    }
   };
 
   // Loading state
@@ -301,6 +331,15 @@ export function TaskDetailPage() {
                 </p>
               </CardContent>
             </Card>
+
+            <ReasonDialog
+              open={showReason}
+              title={pendingStatus ? `Reason for ${statusConfig[pendingStatus].label}` : 'Provide reason'}
+              description="Provide a short reason for this critical status change."
+              initialValue={''}
+              onClose={() => { setShowReason(false); setPendingStatus(null); }}
+              onConfirm={handleReasonConfirm}
+            />
 
             {/* Attachments */}
             <Card className="border-0 shadow-lg shadow-slate-200/50 overflow-hidden">

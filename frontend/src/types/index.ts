@@ -72,6 +72,7 @@ export interface Message {
   attachments: MessageAttachment[];
   timestamp: string;
   is_read: boolean;
+  is_system?: boolean;
 }
 
 export interface MessageAttachment {

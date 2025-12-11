@@ -23,8 +23,10 @@ import {
 import type { Task, TaskStatus } from '@/types';
 import { useTaskStore } from '@/stores/task.store';
 import { useAuthStore } from '@/stores/auth.store';
+import ReasonDialog from './ReasonDialog';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { isTestEnv } from '@/lib/env';
 
 interface TaskCardProps {
   task: Task;
@@ -66,12 +68,26 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick }) => {
   const { updateTaskStatus } = useTaskStore();
   const { user } = useAuthStore();
 
-  const handleStatusChange = async (newStatus: TaskStatus, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const [pendingStatus, setPendingStatus] = React.useState<TaskStatus | null>(null);
+  const [isReasonOpen, setIsReasonOpen] = React.useState(false);
+
+  const doUpdate = async (newStatus: TaskStatus, reason?: string) => {
     try {
-      await updateTaskStatus(task.id, newStatus);
+      await updateTaskStatus(task.id, newStatus, reason);
     } catch (error) {
       console.error('Failed to update task status:', error);
+      alert('Failed to update task status');
+    }
+  };
+
+  const handleStatusChange = (newStatus: TaskStatus, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const criticalStatuses: TaskStatus[] = ['done', 'cancelled'];
+    if (criticalStatuses.includes(newStatus)) {
+      setPendingStatus(newStatus);
+      setIsReasonOpen(true);
+    } else {
+      void doUpdate(newStatus);
     }
   };
 
@@ -151,7 +167,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick }) => {
                   <MoreVertical className="h-4 w-4 text-slate-500" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuContent align="end" className="w-48" forceMount={isTestEnv() ? true : undefined}>
                 <DropdownMenuItem
                   onClick={(e: any) => {
                     e.stopPropagation();
@@ -266,6 +282,21 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick }) => {
           </div>
         </div>
       </CardContent>
+      {/* Reason modal for critical transitions */}
+      <ReasonDialog
+        open={isReasonOpen}
+        title={pendingStatus ? `Reason for ${statusLabels[pendingStatus]}` : 'Provide reason'}
+        description="Provide a short reason for this critical status change."
+        initialValue={''}
+        onClose={() => { setIsReasonOpen(false); setPendingStatus(null); }}
+        onConfirm={async (reason: string) => {
+          setIsReasonOpen(false);
+          if (pendingStatus) {
+            await doUpdate(pendingStatus, reason);
+          }
+          setPendingStatus(null);
+        }}
+      />
     </Card>
   );
 };

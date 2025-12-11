@@ -514,3 +514,52 @@ class SystemMessageTests(APITestCase):
 			self.assertEqual(message['room_type'], 'task')
 			self.assertEqual(message['room_id'], self.room.id)
 			self.assertIsInstance(message['attachments'], list)
+
+	def test_respond_assignment_creates_system_message_and_broadcast(self):
+		"""When a user accepts a proposed assignment, a system message should be created and broadcast."""
+		from .models import TaskAssignment
+		# prepare a pending assignment
+		assignment = TaskAssignment.objects.create(task=self.task, user=self.assignee, assigned_by=self.creator)
+
+		# assignee accepts and we expect a system message
+		self.client.force_authenticate(user=self.assignee)
+		with patch('apps.tasks.views.get_channel_layer') as mock_gcl:
+			mock_layer = Mock()
+			mock_layer.group_send = AsyncMock()
+			mock_gcl.return_value = mock_layer
+
+			resp = self.client.post(f'/api/tasks/{self.task.id}/respond_assignment/', {'assignment_id': assignment.id, 'action': 'accept'}, format='json')
+			self.assertEqual(resp.status_code, 200)
+
+			assignment.refresh_from_db()
+			self.assertEqual(assignment.status, 'accepted')
+
+			# DB message created
+			msgs = ChatMessage.objects.filter(room=self.room).order_by('-timestamp')
+			self.assertTrue(msgs.exists())
+			self.assertIn('accepted', msgs.first().content.lower())
+
+			# Broadcast payload exists
+			message = self._last_group_message(mock_layer)
+			self.assertIn('content', message)
+
+	def test_due_date_change_creates_system_message_and_broadcast(self):
+		"""Changing a task's due date through update should create and broadcast a system message."""
+		self.client.force_authenticate(user=self.supervisor)
+		new_due = '2030-01-01T12:00:00Z'
+		with patch('apps.tasks.views.get_channel_layer') as mock_gcl:
+			mock_layer = Mock()
+			mock_layer.group_send = AsyncMock()
+			mock_gcl.return_value = mock_layer
+
+			resp = self.client.patch(f'/api/tasks/{self.task.id}/', {'due_date': new_due}, format='json')
+			self.assertIn(resp.status_code, (200, 204))
+
+			# DB message created
+			msgs = ChatMessage.objects.filter(room=self.room).order_by('-timestamp')
+			self.assertTrue(msgs.exists())
+			self.assertIn('due', msgs.first().content.lower())
+
+			# Broadcast payload exists
+			message = self._last_group_message(mock_layer)
+			self.assertIn('content', message)

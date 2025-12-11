@@ -1,8 +1,21 @@
 import axios from 'axios';
+// Intentionally avoid importing axios types here to keep build-time type checks simpler
 import type { Task, User, Notification, ChatRoom, Message } from '../types';
 import { useAuthStore } from '../stores/auth.store';
 
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:8000/api';
+
+// In-memory tokens (not persisted). These are intentionally kept only in module memory
+// so that we can use the access token for WebSocket subprotocols while keeping
+// HttpOnly cookies for normal HTTP requests.
+let inMemoryAccessToken: string | null = null;
+let inMemoryRefreshToken: string | null = null;
+
+export const getAccessToken = () => inMemoryAccessToken;
+export const setAccessToken = (token: string | null) => { inMemoryAccessToken = token; };
+export const getRefreshToken = () => inMemoryRefreshToken;
+export const setRefreshToken = (token: string | null) => { inMemoryRefreshToken = token; };
+export const clearTokens = () => { inMemoryAccessToken = null; inMemoryRefreshToken = null; };
 
 const api = axios.create({
   baseURL: API_URL,
@@ -12,15 +25,95 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// Note: we rely on HttpOnly cookies for auth; no Authorization header is injected here.
+// Attach Authorization header when in-memory access token exists.
+// use a permissive `any` here to avoid strict axios internal type mismatches during build
+api.interceptors.request.use((config: any) => {
+  const token = inMemoryAccessToken;
+  if (token) {
+    config.headers = config.headers || {};
+    // Only set Authorization if not already present
+    if (!('Authorization' in config.headers)) {
+      (config.headers as any).Authorization = `Bearer ${token}`;
+    }
+  }
+  return config;
+});
 
-// Response interceptor to handle auth errors
+// Token refresh handling with queue to avoid multiple simultaneous refresh calls.
+let isRefreshing = false;
+let failedQueue: any[] = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach(({ resolve, reject, config }: any) => {
+    if (error) {
+      reject(error);
+    } else {
+      if (token) {
+        (config.headers as any) = config.headers || {};
+        (config.headers as any).Authorization = `Bearer ${token}`;
+      }
+      resolve(api.request(config));
+    }
+  });
+  failedQueue = [];
+};
+
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      useAuthStore.getState().logout();
+  async (error: any) => {
+    const originalRequest: any = error.config;
+
+    // If unauthorized, try refresh flow once
+    if (error.response?.status === 401 && !originalRequest?._retry) {
+      originalRequest._retry = true;
+
+      if (isRefreshing) {
+        // Queue the request and return a promise that resolves once refresh completes
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject, config: originalRequest });
+        });
+      }
+
+      isRefreshing = true;
+
+      try {
+        // Prefer using in-memory refresh token if available; otherwise send empty body and rely on cookie.
+        const refreshPayload = inMemoryRefreshToken ? { refresh: inMemoryRefreshToken } : {};
+        const response = await axios.post(`${API_URL}/auth/token/refresh/`, refreshPayload, { withCredentials: true });
+
+        const newAccess = response.data?.access;
+        const newRefresh = response.data?.refresh || inMemoryRefreshToken;
+
+        if (newAccess) {
+          setAccessToken(newAccess);
+        }
+        if (newRefresh) {
+          setRefreshToken(newRefresh);
+        }
+
+        processQueue(null, newAccess);
+        isRefreshing = false;
+
+        // Retry original request with new token
+        (originalRequest.headers as any) = originalRequest.headers || {};
+        if (newAccess) {
+          (originalRequest.headers as any).Authorization = `Bearer ${newAccess}`;
+        }
+        return api.request(originalRequest);
+      } catch (err) {
+        processQueue(err, null);
+        isRefreshing = false;
+        // On refresh failure, clear auth state and tokens
+        try {
+          useAuthStore.getState().logout();
+        } catch (e) {
+          // ignore
+        }
+        clearTokens();
+        return Promise.reject(err);
+      }
     }
+
     return Promise.reject(error);
   }
 );
@@ -31,15 +124,45 @@ export const authService = {
     api.post<{ access: string; refresh: string; user: User }>('/users/auth/login/', {
       email,
       password,
-    }).then(res => res.data),
+    }).then(res => {
+      // Store tokens in memory so WebSocket hook can use them for subprotocol auth.
+      const data = res.data;
+      if (data?.access) setAccessToken(data.access);
+      if (data?.refresh) setRefreshToken(data.refresh);
+      return data;
+    }),
 
   register: (data: any) =>
     api.post<User>('/users/auth/register/', data).then(res => res.data),
 
-  refreshToken: (refresh: string) =>
-    api.post<{ access: string }>('/auth/token/refresh/', { refresh }).then(res => res.data),
+  refreshToken: (refresh?: string) => {
+    const payload = refresh || inMemoryRefreshToken ? { refresh: refresh || inMemoryRefreshToken } : {};
+    return api.post<{ access: string; refresh?: string }>('/auth/token/refresh/', payload).then(res => {
+      if (res.data?.access) setAccessToken(res.data.access);
+      if (res.data?.refresh) setRefreshToken(res.data.refresh);
+      return res.data;
+    });
+  },
 
-  logout: () => api.post('/users/auth/logout/'),
+  logout: () => {
+    clearTokens();
+    return api.post('/users/auth/logout/');
+  },
+  // Account management
+  changePassword: (oldPassword: string, newPassword: string) =>
+    api.post('/change-password/', { old_password: oldPassword, new_password: newPassword }).then(res => res.data),
+
+  passwordResetRequest: (email: string) =>
+    api.post('/password-reset/', { email }).then(res => res.data),
+
+  passwordResetConfirm: (token: string, newPassword: string) =>
+    api.post('/password-reset/confirm/', { token, new_password: newPassword }).then(res => res.data),
+
+  sendVerificationEmail: () =>
+    api.post('/send-verification-email/').then(res => res.data),
+
+  verifyEmail: (token: string) =>
+    api.get(`/verify-email/${token}/`).then(res => res.data),
 };
 
 // Paginated response type
@@ -90,11 +213,15 @@ export const taskService = {
   deleteTask: (id: number) =>
     api.delete(`/tasks/${id}/`).then(res => res.data),
 
-  updateTaskStatus: (id: number, status: string) =>
-    api.post<Task>(`/tasks/${id}/update_status/`, { status }).then(res => res.data),
+  updateTaskStatus: (id: number, status: string, reason?: string) =>
+    api.post<Task>(`/tasks/${id}/update_status/`, reason ? { status, reason } : { status }).then(res => res.data),
 
   assignTask: (taskId: number, userIds: number[]) =>
     api.post<Task>(`/tasks/${taskId}/assign/`, { user_ids: userIds }).then(res => res.data),
+
+  // Get assignment proposals (current user's proposals or supervisor view)
+  getAssignments: () =>
+    api.get(`/tasks/assignments/`).then(res => res.data),
 
   uploadAttachment: (taskId: number, file: File) => {
     const formData = new FormData();
@@ -106,6 +233,24 @@ export const taskService = {
 
   deleteAttachment: (taskId: number, attachmentId: number) =>
     api.delete(`/tasks/${taskId}/attachments/${attachmentId}/`).then(res => res.data),
+
+  // Propose assignment(s) to user(s)
+  proposeAssignment: (taskId: number, userIds: number[]) =>
+    api.post(`/tasks/${taskId}/propose_assignment/`, { user_ids: userIds }).then(res => res.data),
+
+  // Respond to a proposed assignment: action = 'accept' | 'reject', optional reason
+  respondAssignment: (taskId: number, assignmentId: number, action: 'accept' | 'reject', reason?: string) =>
+    api.post(`/tasks/${taskId}/respond_assignment/`, { assignment_id: assignmentId, action, reason }).then(res => res.data),
+
+  // Bulk operations
+  bulkUpdate: (ids: number[], data: any) =>
+    api.post(`/tasks/bulk_update/`, { ids, data }).then(res => res.data),
+
+  bulkAssign: (ids: number[], userIds: number[], replace: boolean = false) =>
+    api.post(`/tasks/bulk_assign/`, { ids, user_ids: userIds, replace }).then(res => res.data),
+
+  bulkDelete: (ids: number[]) =>
+    api.post(`/tasks/bulk_delete/`, { ids }).then(res => res.data),
 };
 
 // Notification Service
@@ -253,7 +398,7 @@ export const attachmentService = {
   },
 
   delete: (attachmentId: number) =>
-    api.delete(`/attachments/${attachmentId}/`).then(res => res.data),
+    api.delete(`/tasks/attachments/${attachmentId}/`).then(res => res.data),
 };
 
 // Activity Log Service
@@ -292,7 +437,7 @@ export const activityLogService = {
     }),
 
   getByTask: (taskId: number) =>
-    api.get<PaginatedResponse<ActivityLog> | ActivityLog[]>(`/tasks/${taskId}/activity/`).then(res => {
+    api.get<PaginatedResponse<ActivityLog> | ActivityLog[]>(`/tasks/${taskId}/activity_logs/`).then(res => {
       const data = res.data;
       if (Array.isArray(data)) {
         return data;

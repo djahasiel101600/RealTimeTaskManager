@@ -26,6 +26,7 @@ interface MainLayoutProps {
 const navigationItems = [
   { name: 'Dashboard', path: '/tasks', icon: LayoutDashboard, description: 'Manage tasks' },
   { name: 'Chat', path: '/chat', icon: MessageSquare, description: 'Team messaging' },
+  { name: 'Proposals', path: '/assignments/proposals', icon: Users, description: 'Assignment proposals' },
   { name: 'Users', path: '/users', icon: Users, roles: ['supervisor', 'atl'], description: 'Team members' },
   { name: 'Activity', path: '/activity-logs', icon: Activity, roles: ['supervisor', 'atl'], description: 'System logs' },
   { name: 'Profile', path: '/profile', icon: User, description: 'Your account' },

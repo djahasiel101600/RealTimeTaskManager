@@ -35,7 +35,7 @@ interface TaskState {
   createTask: (taskData: any) => Promise<Task>;
   updateTask: (id: number, updates: Partial<Task>) => Promise<Task>;
   deleteTask: (id: number) => Promise<void>;
-  updateTaskStatus: (id: number, status: TaskStatus) => Promise<void>;
+  updateTaskStatus: (id: number, status: TaskStatus, reason?: string) => Promise<void>;
   assignTask: (taskId: number, userIds: number[]) => Promise<void>;
   setFilters: (filters: Partial<TaskState['filters']>) => void;
   setSelectedTask: (task: Task | null) => void;
@@ -128,8 +128,8 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     }));
   },
   
-  updateTaskStatus: async (id: number, status: TaskStatus) => {
-    const task = await taskService.updateTaskStatus(id, status);
+  updateTaskStatus: async (id: number, status: TaskStatus, reason?: string) => {
+    const task = await taskService.updateTaskStatus(id, status, reason);
     set((state) => ({
       tasks: state.tasks.map(t => t.id === id ? task : t),
       selectedTask: state.selectedTask?.id === id ? task : state.selectedTask
