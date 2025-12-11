@@ -129,3 +129,47 @@ class TaskAssignmentTests(APITestCase):
 		# Expect our assignment in the list
 		ids = [a.get('id') for a in resp.data]
 		self.assertIn(assignment.id, ids)
+
+
+class BulkTaskOperationsTests(APITestCase):
+	def setUp(self):
+		self.creator = User.objects.create_user(email='creator3@example.com', username='creator3', password='pass')
+		self.assignee = User.objects.create_user(email='assignee3@example.com', username='assignee3', password='pass')
+		self.supervisor = User.objects.create_user(email='sup2@example.com', username='sup2', password='pass')
+		self.supervisor.role = 'supervisor'
+		self.supervisor.save()
+
+		self.atl = User.objects.create_user(email='atl@example.com', username='atl', password='pass')
+		self.atl.role = 'atl'
+		self.atl.save()
+
+		# Create several tasks
+		self.t1 = Task.objects.create(title='Bulk1', description='d', created_by=self.creator)
+		self.t2 = Task.objects.create(title='Bulk2', description='d', created_by=self.creator)
+		self.t3 = Task.objects.create(title='Bulk3', description='d', created_by=self.atl)
+
+		self.client = APIClient()
+
+	def test_supervisor_can_bulk_assign(self):
+		self.client.force_authenticate(user=self.supervisor)
+		url = '/api/tasks/bulk_assign/'
+		resp = self.client.post(url, {'ids': [self.t1.id, self.t2.id], 'user_ids': [self.assignee.id]}, format='json')
+		self.assertEqual(resp.status_code, 200)
+		# Check assigned
+		self.t1.refresh_from_db(); self.t2.refresh_from_db()
+		self.assertTrue(self.t1.assigned_to.filter(id=self.assignee.id).exists())
+
+	def test_atl_can_bulk_update_their_tasks(self):
+		# ATL created t3; they should be able to update it
+		self.client.force_authenticate(user=self.atl)
+		url = '/api/tasks/bulk_update/'
+		resp = self.client.post(url, {'ids': [self.t3.id], 'data': {'priority': 'high'}}, format='json')
+		self.assertEqual(resp.status_code, 200)
+		self.t3.refresh_from_db()
+		self.assertEqual(self.t3.priority, 'high')
+
+	def test_atl_cannot_bulk_delete(self):
+		self.client.force_authenticate(user=self.atl)
+		url = '/api/tasks/bulk_delete/'
+		resp = self.client.post(url, {'ids': [self.t1.id]}, format='json')
+		self.assertEqual(resp.status_code, 403)

@@ -537,6 +537,111 @@ class TaskViewSet(viewsets.ModelViewSet):
             ip = self.request.META.get('REMOTE_ADDR')
         return ip
 
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def bulk_update(self, request):
+        """Bulk update multiple tasks.
+
+        Payload: { ids: [1,2,3], data: { status: 'done', priority: 'high' } }
+        - Supervisors may update any tasks.
+        - ATLs may update tasks they created or tasks assigned to clerks/atm.
+        - Regular users are forbidden.
+        """
+        ids = request.data.get('ids') or []
+        data = request.data.get('data') or {}
+
+        if not isinstance(ids, list) or not ids:
+            return Response({'error': 'ids (non-empty list) required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        if user.role not in ('supervisor', 'atl'):
+            return Response({'error': 'permission denied'}, status=status.HTTP_403_FORBIDDEN)
+
+        from django.db.models import Q
+        qs = Task.objects.filter(id__in=ids)
+        if user.role == 'atl':
+            qs = qs.filter(Q(created_by=user) | Q(assigned_to__role__in=['clerk', 'atm'])).distinct()
+
+        # Validate change payload with TaskUpdateSerializer
+        # allow partial updates for bulk operations
+        serializer = TaskUpdateSerializer(data=data, partial=True)
+        if not serializer.is_valid():
+            # log and return the errors to make debugging tests easier
+            logger.error(f"bulk_update validation errors: {serializer.errors}")
+            return Response({'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        updated_ids = []
+        for task in qs:
+            for field, value in serializer.validated_data.items():
+                setattr(task, field, value)
+            task.save()
+            updated_ids.append(task.id)
+            self.create_activity_log(task, 'bulk_updated', {'fields': list(serializer.validated_data.keys())})
+
+        return Response({'updated_ids': updated_ids})
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def bulk_assign(self, request):
+        """Bulk assign users to multiple tasks.
+
+        Payload: { ids: [1,2], user_ids: [5,6], replace: false }
+        - Supervisors may assign any tasks.
+        - ATLs may assign tasks they created or assigned to clerks/atm.
+        """
+        ids = request.data.get('ids') or []
+        user_ids = request.data.get('user_ids') or []
+        replace = bool(request.data.get('replace'))
+
+        if not isinstance(ids, list) or not ids or not isinstance(user_ids, list) or not user_ids:
+            return Response({'error': 'ids and user_ids (non-empty lists) required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        if user.role not in ('supervisor', 'atl'):
+            return Response({'error': 'permission denied'}, status=status.HTTP_403_FORBIDDEN)
+
+        users = User.objects.filter(id__in=user_ids)
+        if not users.exists():
+            return Response({'error': 'no valid users found'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from django.db.models import Q
+        qs = Task.objects.filter(id__in=ids)
+        if user.role == 'atl':
+            qs = qs.filter(Q(created_by=user) | Q(assigned_to__role__in=['clerk', 'atm'])).distinct()
+
+        assigned_task_ids = []
+        for task in qs:
+            if replace:
+                task.assigned_to.set(users)
+            else:
+                task.assigned_to.add(*users)
+            assigned_task_ids.append(task.id)
+            self.create_activity_log(task, 'bulk_assigned', {'user_ids': [u.id for u in users], 'replace': replace})
+            for u in users:
+                send_notification_ws(u.id, {
+                    'type': 'task_assigned',
+                    'title': 'Task Assigned',
+                    'message': f'You were assigned to task: {task.title}',
+                    'task_id': task.id,
+                })
+
+        return Response({'assigned_task_ids': assigned_task_ids})
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def bulk_delete(self, request):
+        """Bulk delete tasks. Only supervisors allowed."""
+        ids = request.data.get('ids') or []
+        if not isinstance(ids, list) or not ids:
+            return Response({'error': 'ids (non-empty list) required'}, status=status.HTTP_400_BAD_REQUEST)
+        user = request.user
+        if user.role != 'supervisor':
+            return Response({'error': 'permission denied'}, status=status.HTTP_403_FORBIDDEN)
+
+        qs = Task.objects.filter(id__in=ids)
+        deleted_ids = [t.id for t in qs]
+        # create logs before deletion
+        for t in qs:
+            self.create_activity_log(t, 'bulk_deleted', {})
+        qs.delete()
+        return Response({'deleted_ids': deleted_ids})
+
 
 class TaskAttachmentViewSet(viewsets.ModelViewSet):
     queryset = TaskAttachment.objects.all()
