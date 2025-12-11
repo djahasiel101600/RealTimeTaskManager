@@ -25,6 +25,17 @@ jobs:
             docker compose exec -T db pg_isready -U postgres && break || sleep 2
           done
 
-      - name: Run backend tests
+      - name: Wait for Redis
         run: |
-          docker compose exec -T backend sh -c 'python manage.py test -v2 --noinput'
+          echo "Waiting for Redis to be ready..."
+          for i in {1..30}; do
+            docker compose exec -T redis redis-cli ping | grep -q PONG && break || sleep 2
+          done
+
+      - name: Run migrations
+        run: |
+          docker compose exec -T backend sh -c 'python manage.py migrate --noinput'
+
+      - name: Run backend tests (apps.tasks)
+        run: |
+          docker compose exec -T backend sh -c 'python -u manage.py test apps.tasks -v2 --noinput'
