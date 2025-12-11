@@ -1,5 +1,7 @@
 from django.test import TestCase
 from rest_framework.test import APITestCase, APIClient
+from unittest.mock import patch, Mock, AsyncMock
+import datetime
 from django.contrib.auth import get_user_model
 from .models import Task, ActivityLog
 from apps.chat.models import ChatRoom, Message as ChatMessage
@@ -306,8 +308,209 @@ class BulkTaskOperationsEdgeTests(APITestCase):
 			t.refresh_from_db()
 			self.assertFalse(t.assigned_to.filter(id=u.id).exists())
 
+	def test_bulk_update_rolls_back_on_exception(self):
+		"""If an exception occurs during bulk_update, the DB changes should rollback."""
+		from unittest.mock import patch
+
+		self.client.force_authenticate(user=self.supervisor)
+
+		# Set explicit priorities so we can detect changes
+		self.t1.priority = 'normal'
+		self.t2.priority = 'normal'
+		self.t1.save(); self.t2.save()
+
+		tasks = [self.t1, self.t2]
+
+		call_count = {'n': 0}
+
+		def flaky_create_log(self_obj, task, action, details=None):
+			call_count['n'] += 1
+			# raise on second log to simulate mid-transaction failure
+			if call_count['n'] == 2:
+				raise Exception('simulated activity log failure')
+
+		with patch('apps.tasks.views.TaskViewSet.create_activity_log', side_effect=flaky_create_log):
+			try:
+				self.client.post('/api/tasks/bulk_update/', {'ids': [t.id for t in tasks], 'data': {'priority': 'low'}}, format='json')
+			except Exception:
+				# swallow: failure expected
+				pass
+
+		# Reload tasks and ensure none were changed to 'low'
+		for t in tasks:
+			t.refresh_from_db()
+			self.assertNotEqual(t.priority, 'low')
+
+	def test_bulk_delete_rolls_back_on_exception(self):
+		"""If an exception occurs during bulk_delete, the DB changes should rollback (no deletions)."""
+		from unittest.mock import patch
+
+		self.client.force_authenticate(user=self.supervisor)
+
+		# Prepare two tasks
+		tasks = [self.t1, self.t2]
+
+		call_count = {'n': 0}
+
+		def flaky_create_log(self_obj, task, action, details=None):
+			call_count['n'] += 1
+			# raise on first invocation to simulate failure before deletes
+			if call_count['n'] == 1:
+				raise Exception('simulated activity log failure')
+
+		with patch('apps.tasks.views.TaskViewSet.create_activity_log', side_effect=flaky_create_log):
+			try:
+				self.client.post('/api/tasks/bulk_delete/', {'ids': [t.id for t in tasks]}, format='json')
+			except Exception:
+				# swallow expected failure
+				pass
+
+		# Ensure both tasks still exist (rolled back)
+		for t in tasks:
+			t.refresh_from_db()
+			self.assertTrue(Task.objects.filter(id=t.id).exists())
+
 	def test_bulk_delete_with_nonexistent_id(self):
 		self.client.force_authenticate(user=self.supervisor)
 		resp = self.client.post('/api/tasks/bulk_delete/', {'ids': [self.t2.id, 999999]}, format='json')
 		self.assertEqual(resp.status_code, 200)
 		self.assertFalse(Task.objects.filter(id=self.t2.id).exists())
+
+
+class SystemMessageTests(APITestCase):
+	"""Tests that system chat messages are created and broadcast for task events."""
+	def setUp(self):
+		self.creator = User.objects.create_user(email='creator_sys@example.com', username='creator_sys', password='pass')
+		self.assignee = User.objects.create_user(email='assignee_sys@example.com', username='assignee_sys', password='pass')
+		self.supervisor = User.objects.create_user(email='sup_sys@example.com', username='sup_sys', password='pass')
+		self.supervisor.role = 'supervisor'
+		self.supervisor.save()
+
+		# Tasks
+		self.task = Task.objects.create(title='SysMsg Task', description='desc', created_by=self.creator)
+		# Ensure a room exists for the task
+		self.room = ChatRoom.objects.create(room_type='task', task=self.task)
+
+		self.client = APIClient()
+
+	def _last_group_message(self, mock_layer):
+		# Helper to retrieve last group_send payload
+		assert mock_layer.group_send.call_count >= 1
+		args, kwargs = mock_layer.group_send.call_args
+		return args[1].get('message')
+
+	def test_assign_creates_system_message_and_broadcast(self):
+		self.client.force_authenticate(user=self.creator)
+		with patch('apps.tasks.views.get_channel_layer') as mock_gcl:
+			mock_layer = Mock()
+			mock_layer.group_send = AsyncMock()
+			mock_gcl.return_value = mock_layer
+
+			resp = self.client.post(f'/api/tasks/{self.task.id}/assign/', {'user_ids': [self.assignee.id]}, format='json')
+			self.assertEqual(resp.status_code, 200)
+
+			# Check DB message created
+			msgs = ChatMessage.objects.filter(room=self.room).order_by('-timestamp')
+			self.assertTrue(msgs.exists())
+			latest = msgs.first()
+			self.assertIn('Assigned', latest.content)
+
+			# Check broadcast payload
+			message = self._last_group_message(mock_layer)
+			self.assertIn('content', message)
+			self.assertIn('Assigned', message['content'])
+
+	def test_bulk_assign_creates_system_messages_and_broadcasts(self):
+		# create an additional task
+		t2 = Task.objects.create(title='SysMsg Task 2', description='desc', created_by=self.creator)
+		ChatRoom.objects.create(room_type='task', task=t2)
+
+		self.client.force_authenticate(user=self.supervisor)
+		with patch('apps.tasks.views.get_channel_layer') as mock_gcl:
+			mock_layer = Mock()
+			mock_layer.group_send = AsyncMock()
+			mock_gcl.return_value = mock_layer
+
+			resp = self.client.post('/api/tasks/bulk_assign/', {'ids': [self.task.id, t2.id], 'user_ids': [self.assignee.id]}, format='json')
+			self.assertEqual(resp.status_code, 200)
+
+			# Both rooms should have messages
+			m1 = ChatMessage.objects.filter(room__task=self.task).exists()
+			m2 = ChatMessage.objects.filter(room__task=t2).exists()
+			self.assertTrue(m1)
+			self.assertTrue(m2)
+
+			# group_send was called at least once
+			self.assertTrue(mock_layer.group_send.call_count >= 1)
+
+	def test_upload_attachment_creates_system_message_and_broadcast(self):
+		# Use a supervisor (has broad permissions) to avoid permission checks
+		self.client.force_authenticate(user=self.supervisor)
+		with patch('apps.tasks.views.get_channel_layer') as mock_gcl:
+			mock_layer = Mock()
+			mock_layer.group_send = AsyncMock()
+			mock_gcl.return_value = mock_layer
+
+			from django.core.files.uploadedfile import SimpleUploadedFile
+			# use an allowed mime type (pdf) to pass file validation
+			f = SimpleUploadedFile('test.pdf', b'%%PDF-1.4\n%', content_type='application/pdf')
+			resp = self.client.post(f'/api/tasks/{self.task.id}/upload_attachment/', {'file': f}, format='multipart')
+			self.assertEqual(resp.status_code, 201)
+
+			msgs = ChatMessage.objects.filter(room=self.room).order_by('-timestamp')
+			self.assertTrue(msgs.exists())
+			self.assertIn('File attached', msgs.first().content)
+			message = self._last_group_message(mock_layer)
+			self.assertIn('content', message)
+
+	def test_update_status_creates_system_message_and_broadcast(self):
+		# Use a supervisor (bypass attach permission edge cases)
+		self.client.force_authenticate(user=self.supervisor)
+		with patch('apps.tasks.views.get_channel_layer') as mock_gcl:
+			mock_layer = Mock()
+			mock_layer.group_send = AsyncMock()
+			mock_gcl.return_value = mock_layer
+
+			# use an allowed transition from default 'todo' -> 'in_progress'
+			resp = self.client.post(f'/api/tasks/{self.task.id}/update_status/', {'status': 'in_progress'}, format='json')
+			self.assertEqual(resp.status_code, 200)
+
+			msgs = ChatMessage.objects.filter(room=self.room).order_by('-timestamp')
+			self.assertTrue(msgs.exists())
+			self.assertIn('Status changed', msgs.first().content)
+			message = self._last_group_message(mock_layer)
+			self.assertIn('content', message)
+
+	def test_broadcast_payload_full_shape(self):
+		"""Assert the broadcast payload contains the exact expected shape and types."""
+		self.client.force_authenticate(user=self.creator)
+		with patch('apps.tasks.views.get_channel_layer') as mock_gcl:
+			mock_layer = Mock()
+			mock_layer.group_send = AsyncMock()
+			mock_gcl.return_value = mock_layer
+
+			resp = self.client.post(f'/api/tasks/{self.task.id}/assign/', {'user_ids': [self.assignee.id]}, format='json')
+			self.assertEqual(resp.status_code, 200)
+
+			# Inspect the last broadcast payload
+			message = self._last_group_message(mock_layer)
+			expected_keys = {'id', 'content', 'sender', 'timestamp', 'room_type', 'room_id', 'attachments'}
+			self.assertEqual(set(message.keys()), expected_keys)
+
+			# Basic type checks
+			self.assertIsInstance(message['id'], int)
+			self.assertIn('Assigned', message['content'])
+
+			if message['sender'] is not None:
+				self.assertIsInstance(message['sender'], dict)
+				self.assertIn('id', message['sender'])
+				self.assertIn('username', message['sender'])
+				self.assertIn('avatar', message['sender'])
+
+			# Timestamp should be ISO-formatted parseable
+			ts = datetime.datetime.fromisoformat(message['timestamp'])
+			self.assertIsNotNone(ts)
+
+			self.assertEqual(message['room_type'], 'task')
+			self.assertEqual(message['room_id'], self.room.id)
+			self.assertIsInstance(message['attachments'], list)
