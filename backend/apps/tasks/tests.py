@@ -244,3 +244,39 @@ class BulkTaskOperationsEdgeTests(APITestCase):
 		self.client.force_authenticate(user=self.creator)
 		resp = self.client.post('/api/tasks/bulk_delete/', {'ids': [self.t3.id]}, format='json')
 		self.assertEqual(resp.status_code, 403)
+
+	def test_bulk_update_with_nonexistent_id_ignored(self):
+		self.client.force_authenticate(user=self.supervisor)
+		# include a non-existent id
+		resp = self.client.post('/api/tasks/bulk_update/', {'ids': [self.t1.id, 999999], 'data': {'priority': 'low'}}, format='json')
+		self.assertEqual(resp.status_code, 200)
+		updated_ids = resp.data.get('updated_ids', [])
+		self.assertIn(self.t1.id, updated_ids)
+		self.assertNotIn(999999, updated_ids)
+
+	def test_bulk_assign_to_multiple_users(self):
+		self.client.force_authenticate(user=self.supervisor)
+		u1 = User.objects.create_user(email='m1@example.com', username='m1', password='pass')
+		u2 = User.objects.create_user(email='m2@example.com', username='m2', password='pass')
+		resp = self.client.post('/api/tasks/bulk_assign/', {'ids': [self.t1.id], 'user_ids': [u1.id, u2.id]}, format='json')
+		self.assertEqual(resp.status_code, 200)
+		self.t1.refresh_from_db()
+		self.assertTrue(self.t1.assigned_to.filter(id=u1.id).exists())
+		self.assertTrue(self.t1.assigned_to.filter(id=u2.id).exists())
+
+	def test_bulk_assign_idempotent(self):
+		self.client.force_authenticate(user=self.supervisor)
+		u = User.objects.create_user(email='u1@example.com', username='u1', password='pass')
+		# assign twice
+		resp1 = self.client.post('/api/tasks/bulk_assign/', {'ids': [self.t2.id], 'user_ids': [u.id]}, format='json')
+		resp2 = self.client.post('/api/tasks/bulk_assign/', {'ids': [self.t2.id], 'user_ids': [u.id]}, format='json')
+		self.assertEqual(resp1.status_code, 200)
+		self.assertEqual(resp2.status_code, 200)
+		self.t2.refresh_from_db()
+		self.assertEqual(self.t2.assigned_to.filter(id=u.id).count(), 1)
+
+	def test_bulk_delete_with_nonexistent_id(self):
+		self.client.force_authenticate(user=self.supervisor)
+		resp = self.client.post('/api/tasks/bulk_delete/', {'ids': [self.t2.id, 999999]}, format='json')
+		self.assertEqual(resp.status_code, 200)
+		self.assertFalse(Task.objects.filter(id=self.t2.id).exists())
