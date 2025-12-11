@@ -173,3 +173,74 @@ class BulkTaskOperationsTests(APITestCase):
 		url = '/api/tasks/bulk_delete/'
 		resp = self.client.post(url, {'ids': [self.t1.id]}, format='json')
 		self.assertEqual(resp.status_code, 403)
+
+
+class BulkTaskOperationsEdgeTests(APITestCase):
+	"""Edge-case tests for bulk task operations."""
+	def setUp(self):
+		self.creator = User.objects.create_user(email='creator4@example.com', username='creator4', password='pass')
+		self.other = User.objects.create_user(email='other@example.com', username='other', password='pass')
+		# make 'other' a supervisor so ATL should NOT have permission via assigned role
+		self.other.role = 'supervisor'
+		self.other.save()
+		self.supervisor = User.objects.create_user(email='sup3@example.com', username='sup3', password='pass')
+		self.supervisor.role = 'supervisor'
+		self.supervisor.save()
+
+		self.atl = User.objects.create_user(email='atl2@example.com', username='atl2', password='pass')
+		self.atl.role = 'atl'
+		self.atl.save()
+
+		# Tasks: t1 created by creator, t2 created by other, t3 created by atl
+		self.t1 = Task.objects.create(title='E1', description='d', created_by=self.creator)
+		self.t2 = Task.objects.create(title='E2', description='d', created_by=self.other)
+		self.t3 = Task.objects.create(title='E3', description='d', created_by=self.atl)
+
+		# t1 initially assigned to other
+		self.t1.assigned_to.add(self.other)
+
+		self.client = APIClient()
+
+	def test_bulk_update_invalid_payload_returns_errors(self):
+		# supervisor tries to set invalid status value
+		self.client.force_authenticate(user=self.supervisor)
+		resp = self.client.post('/api/tasks/bulk_update/', {'ids': [self.t1.id], 'data': {'status': 'nope'}}, format='json')
+		self.assertEqual(resp.status_code, 400)
+		self.assertIn('errors', resp.data)
+		self.assertIn('status', resp.data['errors'])
+
+	def test_bulk_assign_no_valid_users(self):
+		self.client.force_authenticate(user=self.supervisor)
+		# use an ID that doesn't exist
+		resp = self.client.post('/api/tasks/bulk_assign/', {'ids': [self.t1.id], 'user_ids': [99999]}, format='json')
+		self.assertEqual(resp.status_code, 400)
+
+	def test_bulk_assign_replace_replaces_existing_assignees(self):
+		self.client.force_authenticate(user=self.supervisor)
+		# t1 currently has 'other' assigned, replace with 'creator'
+		resp = self.client.post('/api/tasks/bulk_assign/', {'ids': [self.t1.id], 'user_ids': [self.creator.id], 'replace': True}, format='json')
+		self.assertEqual(resp.status_code, 200)
+		self.t1.refresh_from_db()
+		self.assertTrue(self.t1.assigned_to.filter(id=self.creator.id).exists())
+		self.assertFalse(self.t1.assigned_to.filter(id=self.other.id).exists())
+
+	def test_atl_partial_permission_only_updates_their_tasks(self):
+		# ATL should only update tasks they created (t3) or tasks assigned to clerks/atm
+		self.client.force_authenticate(user=self.atl)
+		# try to update t1 (not theirs) and t3 (theirs)
+		resp = self.client.post('/api/tasks/bulk_update/', {'ids': [self.t1.id, self.t3.id], 'data': {'priority': 'urgent'}}, format='json')
+		self.assertEqual(resp.status_code, 200)
+		updated_ids = resp.data.get('updated_ids', [])
+		self.assertIn(self.t3.id, updated_ids)
+		self.assertNotIn(self.t1.id, updated_ids)
+
+	def test_bulk_delete_supervisor_deletes(self):
+		self.client.force_authenticate(user=self.supervisor)
+		resp = self.client.post('/api/tasks/bulk_delete/', {'ids': [self.t2.id]}, format='json')
+		self.assertEqual(resp.status_code, 200)
+		self.assertFalse(Task.objects.filter(id=self.t2.id).exists())
+
+	def test_bulk_delete_non_supervisor_forbidden(self):
+		self.client.force_authenticate(user=self.creator)
+		resp = self.client.post('/api/tasks/bulk_delete/', {'ids': [self.t3.id]}, format='json')
+		self.assertEqual(resp.status_code, 403)
