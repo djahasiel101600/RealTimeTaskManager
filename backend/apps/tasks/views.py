@@ -557,26 +557,41 @@ class TaskViewSet(viewsets.ModelViewSet):
             return Response({'error': 'permission denied'}, status=status.HTTP_403_FORBIDDEN)
 
         from django.db.models import Q
-        qs = Task.objects.filter(id__in=ids)
-        if user.role == 'atl':
-            qs = qs.filter(Q(created_by=user) | Q(assigned_to__role__in=['clerk', 'atm'])).distinct()
+        from django.db import transaction
 
-        # Validate change payload with TaskUpdateSerializer
-        # allow partial updates for bulk operations
-        serializer = TaskUpdateSerializer(data=data, partial=True)
-        if not serializer.is_valid():
-            # log and return the errors to make debugging tests easier
-            logger.error(f"bulk_update validation errors: {serializer.errors}")
-            return Response({'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
-        updated_ids = []
-        for task in qs:
-            for field, value in serializer.validated_data.items():
-                setattr(task, field, value)
-            task.save()
-            updated_ids.append(task.id)
-            self.create_activity_log(task, 'bulk_updated', {'fields': list(serializer.validated_data.keys())})
+        # Use a locking select to avoid races and enforce transactional semantics
+        with transaction.atomic():
+            locked_qs = Task.objects.select_for_update().filter(id__in=ids)
 
-        return Response({'updated_ids': updated_ids})
+            # If ATL, check permissions per-task in Python to avoid DISTINCT+FOR UPDATE errors
+            if user.role == 'atl':
+                permitted_tasks = []
+                for t in locked_qs:
+                    if t.created_by_id == user.id or t.assigned_to.filter(role__in=['clerk', 'atm']).exists():
+                        permitted_tasks.append(t)
+                tasks_to_update = permitted_tasks
+            else:
+                tasks_to_update = list(locked_qs)
+
+            # Ignore non-existent or non-permitted ids; operate on tasks_to_update
+
+            # Validate change payload with TaskUpdateSerializer
+            # allow partial updates for bulk operations
+            serializer = TaskUpdateSerializer(data=data, partial=True)
+            if not serializer.is_valid():
+                # log and return the errors to make debugging tests easier
+                logger.error(f"bulk_update validation errors: {serializer.errors}")
+                return Response({'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+            updated_ids = []
+            for task in tasks_to_update:
+                for field, value in serializer.validated_data.items():
+                    setattr(task, field, value)
+                task.save()
+                updated_ids.append(task.id)
+                self.create_activity_log(task, 'bulk_updated', {'fields': list(serializer.validated_data.keys())})
+
+            return Response({'updated_ids': updated_ids})
 
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
     def bulk_assign(self, request):
@@ -602,27 +617,30 @@ class TaskViewSet(viewsets.ModelViewSet):
             return Response({'error': 'no valid users found'}, status=status.HTTP_400_BAD_REQUEST)
 
         from django.db.models import Q
-        qs = Task.objects.filter(id__in=ids)
-        if user.role == 'atl':
-            qs = qs.filter(Q(created_by=user) | Q(assigned_to__role__in=['clerk', 'atm'])).distinct()
+        from django.db import transaction
 
-        assigned_task_ids = []
-        for task in qs:
-            if replace:
-                task.assigned_to.set(users)
-            else:
-                task.assigned_to.add(*users)
-            assigned_task_ids.append(task.id)
-            self.create_activity_log(task, 'bulk_assigned', {'user_ids': [u.id for u in users], 'replace': replace})
-            for u in users:
-                send_notification_ws(u.id, {
-                    'type': 'task_assigned',
-                    'title': 'Task Assigned',
-                    'message': f'You were assigned to task: {task.title}',
-                    'task_id': task.id,
-                })
+        with transaction.atomic():
+            qs = Task.objects.select_for_update().filter(id__in=ids)
+            if user.role == 'atl':
+                qs = qs.filter(Q(created_by=user) | Q(assigned_to__role__in=['clerk', 'atm'])).distinct()
 
-        return Response({'assigned_task_ids': assigned_task_ids})
+            assigned_task_ids = []
+            for task in qs:
+                if replace:
+                    task.assigned_to.set(users)
+                else:
+                    task.assigned_to.add(*users)
+                assigned_task_ids.append(task.id)
+                self.create_activity_log(task, 'bulk_assigned', {'user_ids': [u.id for u in users], 'replace': replace})
+                for u in users:
+                    send_notification_ws(u.id, {
+                        'type': 'task_assigned',
+                        'title': 'Task Assigned',
+                        'message': f'You were assigned to task: {task.title}',
+                        'task_id': task.id,
+                    })
+
+            return Response({'assigned_task_ids': assigned_task_ids})
 
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
     def bulk_delete(self, request):
@@ -634,13 +652,17 @@ class TaskViewSet(viewsets.ModelViewSet):
         if user.role != 'supervisor':
             return Response({'error': 'permission denied'}, status=status.HTTP_403_FORBIDDEN)
 
-        qs = Task.objects.filter(id__in=ids)
-        deleted_ids = [t.id for t in qs]
-        # create logs before deletion
-        for t in qs:
-            self.create_activity_log(t, 'bulk_deleted', {})
-        qs.delete()
-        return Response({'deleted_ids': deleted_ids})
+        from django.db import transaction
+        with transaction.atomic():
+            qs = Task.objects.select_for_update().filter(id__in=ids)
+
+            # Ignore non-existent ids; delete any found
+            deleted_ids = [t.id for t in qs]
+            # create logs before deletion
+            for t in qs:
+                self.create_activity_log(t, 'bulk_deleted', {})
+            qs.delete()
+            return Response({'deleted_ids': deleted_ids})
 
 
 class TaskAttachmentViewSet(viewsets.ModelViewSet):

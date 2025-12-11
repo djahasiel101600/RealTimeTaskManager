@@ -275,6 +275,37 @@ class BulkTaskOperationsEdgeTests(APITestCase):
 		self.t2.refresh_from_db()
 		self.assertEqual(self.t2.assigned_to.filter(id=u.id).count(), 1)
 
+	def test_bulk_assign_rolls_back_on_exception(self):
+		"""If an exception occurs during bulk_assign, the DB changes should rollback."""
+		from unittest.mock import patch
+
+		self.client.force_authenticate(user=self.supervisor)
+		u = User.objects.create_user(email='rb@example.com', username='rb', password='pass')
+
+		# Prepare two tasks to assign
+		tasks = [self.t1, self.t2]
+
+		call_count = {'n': 0}
+
+		def flaky_notify(user_id, payload):
+			call_count['n'] += 1
+			# raise on the second notification to simulate a mid-transaction failure
+			if call_count['n'] == 2:
+				raise Exception('simulated notification failure')
+
+		with patch('apps.tasks.views.send_notification_ws', side_effect=flaky_notify):
+			# perform the bulk_assign; it may raise due to our patched notifier
+			try:
+				self.client.post('/api/tasks/bulk_assign/', {'ids': [t.id for t in tasks], 'user_ids': [u.id]}, format='json')
+			except Exception:
+				# swallow: we expect the operation to fail and roll back
+				pass
+
+		# Reload tasks and assert user was not assigned to any (rolled back)
+		for t in tasks:
+			t.refresh_from_db()
+			self.assertFalse(t.assigned_to.filter(id=u.id).exists())
+
 	def test_bulk_delete_with_nonexistent_id(self):
 		self.client.force_authenticate(user=self.supervisor)
 		resp = self.client.post('/api/tasks/bulk_delete/', {'ids': [self.t2.id, 999999]}, format='json')
