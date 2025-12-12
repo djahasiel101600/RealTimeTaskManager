@@ -187,7 +187,7 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Backend URL for building absolute URLs (used for file attachments)
-# In Docker/production: Nginx serves media, so use the public URL
+# In containerized/production deployments: Nginx may serve media; use the public URL
 # In development: Use localhost with port
 BACKEND_URL = os.environ.get('BACKEND_URL', 'http://localhost:8000')
 

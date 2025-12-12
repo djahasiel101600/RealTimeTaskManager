@@ -1,6 +1,6 @@
 # Backend Local Development
 
-This document contains quick commands to set up and run the backend locally without Docker.
+This document contains quick commands to set up and run the backend locally without containerization.
 
 Prereqs:
 

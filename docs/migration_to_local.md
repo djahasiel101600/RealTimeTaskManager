@@ -1,14 +1,14 @@
-# Migration Notes: Docker => Local Development
+# Migration Notes: Containerized => Local Development
 
-This document highlights configuration changes and compatibility notes for switching from Docker to running the app locally without containers.
+This document highlights configuration changes and compatibility notes for switching from a containerized setup to running the app locally without containers.
 
 Key changes
 
 - DATABASE_HOST defaults now to `localhost` instead of `postgres`.
 - REDIS_URL defaults now to `redis://localhost:6379/0` instead of `redis://redis:6379/0`.
 - CORS_ALLOWED_ORIGINS, ALLOWED_HOSTS defaults have been updated to only include `localhost`/127.0.0.1.
-- The `docker-compose` and `docker-compose.override.yml` files have been deprecated; a `.removed` file or note exists in the repo for reference.
-- Dockerfiles in `frontend`/`backend` have been replaced with deprecation notes; they are not used by default but remain in the repo for historical reasons.
+- The compose and override files were removed; check the git history to view older versions if you need to reintroduce them.
+- Container build files in `frontend`/`backend` were removed; check git history (or older branches) for prior container builds if necessary.
 
 Environment variables and compatibility
 
@@ -24,6 +24,6 @@ Running locally
 - Backend: Use `python manage.py runserver 0.0.0.0:8000` or `daphne -b 0.0.0.0 -p 8000 task_manager.asgi:application` for WebSocket support.
 - Frontend: `cd frontend && npm install && npm run dev` (dev server default port is 5173).
 
-Rollback to Docker
+Rollback to containerized deployments
 
-- If you need to roll back to Docker for any reason, check the `docker-compose.yml` in previous git commits or check `docker-compose.yml.removed` for the migration note. Reintroducing Dockerfiles and compose files allows you to run the same multi-service stack locally.
+- If you need to roll back to a containerized environment, check the compose files in previous git commits. Reintroducing container build files and compose configs (from history) allows you to run a multi-service stack locally.

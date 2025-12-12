@@ -1,6 +1,6 @@
-# Local Development (No Docker)
+# Local Development (No containerization)
 
-This repository now supports running the application directly on your local machine without Docker.
+This repository now supports running the application directly on your local machine without containerization.
 
 The following instructions assume:
 
@@ -93,7 +93,7 @@ The following instructions assume:
 
 ## Notes & Tips
 
-- If you prefer to use Docker for services like Postgres/Redis, reintroduce docker-compose.yml and the Dockerfiles in the old branches or commit history.
+- Optional: If you prefer to use containerized services for Postgres/Redis, you can reintroduce the compose file(s) and container build files from git history or an older branch.
 - If you are on Windows, using WSL2 to run Postgres and Redis is often easier and more consistent with Linux-based development.
-- This project previously used `docker-compose` hostnames like `postgres` and `redis`. All local dev defaults use `localhost` now.
+- This project previously used compose hostnames like `postgres` and `redis`. All local dev defaults use `localhost` now.
 - For WebSocket development, use `daphne` locally for a more realistic environment.
