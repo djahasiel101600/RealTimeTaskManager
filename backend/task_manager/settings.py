@@ -176,8 +176,19 @@ SIMPLE_JWT = {
 # CORS
 CORS_ALLOWED_ORIGINS = os.environ.get(
     'CORS_ALLOWED_ORIGINS',
-    'http://localhost:3000,http://127.0.0.1:3000'
+    'http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,http://localhost:3003,http://127.0.0.1:3003'
 ).split(',')
+CORS_ALLOW_CREDENTIALS = True
+
+# Allow any localhost port during development as a convenience (regex)
+# This is helpful for dev servers using random ports or ports other than 3000/5173/3003.
+# You can override by setting CORS_ALLOWED_ORIGIN_REGEXES in your env.
+CORS_ALLOWED_ORIGIN_REGEXES_ENV = os.environ.get('CORS_ALLOWED_ORIGIN_REGEXES', '')
+if CORS_ALLOWED_ORIGIN_REGEXES_ENV:
+    CORS_ALLOWED_ORIGIN_REGEXES = [s.strip() for s in CORS_ALLOWED_ORIGIN_REGEXES_ENV.split(',')]
+else:
+    CORS_ALLOWED_ORIGIN_REGEXES = [r'^https?://localhost(:\d+)?$']
+# `CORS_ALLOW_CREDENTIALS` must be True when the frontend needs to send cookies (e.g., HttpOnly JWT cookie)
 CORS_ALLOW_CREDENTIALS = True
 
 # Static & Media files
