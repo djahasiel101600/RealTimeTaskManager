@@ -10,8 +10,8 @@ Purpose: document the important HTTP endpoints, WebSocket channels, message shap
   - Pass `access` token as WebSocket subprotocol: `new WebSocket(url, accessToken)` (preferred)
   - Browser cookies: HttpOnly `access` cookie is parsed server-side from `Cookie` header during handshake (works if same-site & origin permit)
   - Query string: `wss://.../ws/chat/?token=<access>` (fallback)
-
-**General HTTP behavior**
+- `VITE_WS_USE_SUBPROTOCOL=true` — configure WebSocket subprotocol fallback to send token as `Sec-WebSocket-Protocol` header. If false, cookies or query param token is used.
+- `VITE_WS_ALLOW_QUERY_TOKEN=true` — when set, the client will append `?token=<access>` to the WS URL as a last-resort fallback (useful for debugging or environments where cookies and subprotocols are not forwarded)
 
 - Base API root: `/api/` (see per-app prefixes below).
 - Default DRF page size: `20` but some endpoints accept `page`/`page_size` params.

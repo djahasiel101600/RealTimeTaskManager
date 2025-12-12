@@ -23,27 +23,9 @@ env/
 *.swo
 
 # Testing
-.coverage
-htmlcov/
-.tox/
-.pytest_cache/
-.mypy_cache/
-
-# Docker
-Dockerfile
-docker-compose*.yml
-
-# Local development
-.env
-.env.local
-*.log
-logs/
-*.sqlite3
-
-# Documentation
-*.md
-docs/
-
+.dockerignore REMOVED
+# Docker is no longer used by default in this project. This file has been retained for history.
+# If you still build Docker images locally, restore or update the original ignore rules as needed.
 # Static/Media (built at runtime)
 staticfiles/
 media/

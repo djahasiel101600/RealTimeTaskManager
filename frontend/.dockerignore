@@ -20,8 +20,8 @@ coverage/
 *.test.js.snap
 
 # Documentation
-*.md
-
+#.dockerignore REMOVED
+# Docker is no longer the default development workflow. Restore if you need Dockerfiles again.
 # Docker
 Dockerfile
 docker-compose*.yml

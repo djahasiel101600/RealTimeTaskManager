@@ -1,5 +1,5 @@
 Param(
-  [string]$SchemaUrl = "http://localhost:8001/api/schema/",
+  [string]$SchemaUrl = "http://localhost:8000/api/schema/",
   [string]$OutFile = "frontend/src/types/openapi.ts"
 )
 

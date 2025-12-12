@@ -1,5 +1,4 @@
 import json
-import jwt
 import logging
 from django.conf import settings
 from channels.generic.websocket import AsyncWebsocketConsumer
@@ -10,17 +9,24 @@ logger = logging.getLogger(__name__)
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
-    async def connect(self):
-        from django.contrib.auth import get_user_model
-        User = get_user_model()  # safe inside method
-        self.user = None
-        logger.debug(f'ChatConsumer.connect: scope_path={self.scope.get("path")} headers={self.scope.get("headers")}')
-        # Prefer token from Sec-WebSocket-Protocol (subprotocols), then HttpOnly cookie, then fall back to query string
-        subprotocols = self.scope.get('subprotocols', []) or []
-        token = subprotocols[0] if len(subprotocols) > 0 else ''
-        logger.debug(f'ChatConsumer.connect: subprotocols={subprotocols} token={token}')
+    async def _resolve_user_from_scope(self):
+        """Fallback resolution to support tests that call the consumer ASGI
+        directly (subprotocol cookie/query fallback). This avoids duplicate
+        token parsing logic across code paths.
+        """
+        from django.contrib.auth.models import AnonymousUser
+        if getattr(self.scope.get('user'), 'is_authenticated', False):
+            return self.scope.get('user')
+
+        # Try to extract token from subprotocols, cookies, or query
+        token = None
+        subprotocols = self.scope.get('subprotocols') or []
+        if subprotocols:
+            candidate = subprotocols[0]
+            if candidate and isinstance(candidate, str) and candidate.count('.') == 2:
+                token = candidate
+
         if not token:
-            # scope['headers'] is a list of [name, value] byte pairs
             headers = dict((k.decode().lower(), v.decode()) for k, v in self.scope.get('headers', []))
             cookie_header = headers.get('cookie', '')
             if cookie_header:
@@ -29,44 +35,81 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     simple = SimpleCookie()
                     simple.load(cookie_header)
                     if 'access' in simple:
-                        token = simple['access'].value
+                        candidate = simple['access'].value
+                        if candidate and isinstance(candidate, str) and candidate.count('.') == 2:
+                            token = candidate
                 except Exception:
-                    token = ''
+                    token = None
         if not token:
-            query_string = self.scope['query_string'].decode()
-            token = query_string.split('token=')[-1] if 'token=' in query_string else ''
+            query_string = self.scope.get('query_string', b'').decode()
+            if 'token=' in query_string:
+                candidate = query_string.split('token=')[-1]
+                if candidate and candidate.count('.') == 2:
+                    token = candidate
+
+        if not token:
+            return AnonymousUser()
+
+        # Validate token (sync auth library calls the ORM) and return user
+        try:
+            from rest_framework_simplejwt.authentication import JWTAuthentication
+            auth = JWTAuthentication()
+            validated = auth.get_validated_token(token)
+            user = await database_sync_to_async(auth.get_user)(validated)
+            return user
+        except Exception:
+            logger.exception('ChatConsumer._resolve_user_from_scope: failed token validation')
+            return AnonymousUser()
+
+    async def connect(self):
+        from django.contrib.auth import get_user_model
+        User = get_user_model()  # safe inside method
+        self.user = None
+        logger.debug(f'ChatConsumer.connect: scope_path={self.scope.get("path")} headers={self.scope.get("headers")}')
+        # We expect `scope['user']` to be populated by ASGI middleware
+        # (TokenAuthWebSocketMiddleware) - fall back to `scope['user']` if present
+        from django.contrib.auth.models import AnonymousUser
+        self.user = self.scope.get('user') or AnonymousUser()
+        if not getattr(self.user, 'is_authenticated', False):
+            # If no user in scope (e.g. tests using consumer.as_asgi()), try to resolve
+            self.user = await self._resolve_user_from_scope()
         
         logger.info(f"Chat WebSocket connect attempt from {self.scope.get('client', 'unknown')}")
 
+        # If authentication middleware left an AnonymousUser, reject
         try:
-            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
-            user_id = int(payload['user_id'])  # Convert to int since JWT may have it as string
-            self.user = await database_sync_to_async(User.objects.get)(id=user_id)
-            logger.debug(f'ChatConsumer.connect: authenticated user id={getattr(self.user, "id", None)} username={getattr(self.user, "username", None)}')
+            if not getattr(self.user, 'is_authenticated', False):
+                logger.warning('Chat WebSocket: unauthenticated connection attempt')
+                await self.close()
+                return
+            # Mark user online
             self.user.is_online = True
             await database_sync_to_async(self.user.save)()
-            logger.info(f"Chat WebSocket authenticated for user {self.user.username} (id={user_id})")
-        except jwt.ExpiredSignatureError:
-            logger.warning("Chat WebSocket: Token expired")
-            await self.close()
-            return
-        except jwt.InvalidTokenError as e:
-            logger.warning(f"Chat WebSocket: Invalid token - {e}")
-            await self.close()
-            return
+            logger.info(f"Chat WebSocket authenticated for user {self.user.username} (id={self.user.id})")
         except Exception as e:
-            logger.error(f"Chat WebSocket: Authentication error - {e}")
+            logger.exception('Chat WebSocket: error accepting authenticated user')
             await self.close()
             return
 
         self.room_group_name = None
-        await self.accept()
+        logger.debug(f'ChatConsumer.connect: client_scope_path={self.scope.get("path")} user={getattr(self.user, "id", None)}')
+        try:
+            await self.accept()
+        except Exception as e:
+            logger.exception('ChatConsumer.accept failed, closing connection')
+            await self.close()
+            return
         logger.info(f"Chat WebSocket accepted for user {self.user.username}")
 
     async def disconnect(self, close_code):
+        # Log disconnect with close code to aid in debugging transient disconnects
+        logger.info(f"Chat WebSocket disconnect for user={getattr(self.user, 'id', None)} username={getattr(self.user, 'username', None)} close_code={close_code}")
         if self.user:
-            self.user.is_online = False
-            await database_sync_to_async(self.user.save)()
+            try:
+                self.user.is_online = False
+                await database_sync_to_async(self.user.save)()
+            except Exception:
+                logger.exception('Failed to persist disconnect online status for user=%s', getattr(self.user, 'id', None))
 
     async def receive(self, text_data):
         try:
@@ -357,39 +400,83 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             token = query_string.split('token=')[-1] if 'token=' in query_string else ''
 
         logger.info(f"Notification WebSocket connect attempt from {self.scope.get('client', 'unknown')}")
+        logger.debug(f'NotificationConsumer.connect: has_subprotocols={bool(subprotocols)} subprotocol_count={len(subprotocols)}')
+
+        from django.contrib.auth.models import AnonymousUser
+        self.user = self.scope.get('user') or AnonymousUser()
+        # fallback for tests using the consumer directly
+        if not getattr(self.user, 'is_authenticated', False):
+            # Attempt to resolve token from subprotocol/cookie/query
+            token = None
+            subprotocols = self.scope.get('subprotocols') or []
+            if subprotocols:
+                candidate = subprotocols[0]
+                if candidate and isinstance(candidate, str) and candidate.count('.') == 2:
+                    token = candidate
+            if not token:
+                headers = dict((k.decode().lower(), v.decode()) for k, v in self.scope.get('headers', []))
+                cookie_header = headers.get('cookie', '')
+                if cookie_header:
+                    try:
+                        from http.cookies import SimpleCookie
+                        simple = SimpleCookie()
+                        simple.load(cookie_header)
+                        if 'access' in simple:
+                            candidate = simple['access'].value
+                            if candidate and candidate.count('.') == 2:
+                                token = candidate
+                    except Exception:
+                        token = None
+            if not token:
+                query_string = self.scope.get('query_string', b'').decode()
+                if 'token=' in query_string:
+                    candidate = query_string.split('token=')[-1]
+                    if candidate and candidate.count('.') == 2:
+                        token = candidate
+            if token:
+                try:
+                    from rest_framework_simplejwt.authentication import JWTAuthentication
+                    auth = JWTAuthentication()
+                    validated = auth.get_validated_token(token)
+                    self.user = await database_sync_to_async(auth.get_user)(validated)
+                except Exception:
+                    logger.exception('NotificationConsumer: test-mode token validation failed')
+                    self.user = AnonymousUser()
+        if not getattr(self.user, 'is_authenticated', False):
+            logger.warning('Notification WebSocket: unauthenticated connection attempt')
+            await self.close()
+            return
+        try:
+            self.user_group_name = f'notifications_{self.user.id}'
+            logger.info(f"Notification WebSocket authenticated for user {self.user.username} (id={self.user.id})")
+        except Exception as e:
+            logger.exception('Notification WebSocket: failed to set user_group_name')
+            await self.close()
+            return
 
         try:
-            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
-            user_id = int(payload['user_id'])
-            self.user = await database_sync_to_async(User.objects.get)(id=user_id)
-            self.user_group_name = f'notifications_{self.user.id}'
-            logger.info(f"Notification WebSocket authenticated for user {self.user.username} (id={user_id})")
-        except jwt.ExpiredSignatureError:
-            logger.warning("Notification WebSocket: Token expired")
-            await self.close()
-            return
-        except jwt.InvalidTokenError as e:
-            logger.warning(f"Notification WebSocket: Invalid token - {e}")
-            await self.close()
-            return
+            await self.channel_layer.group_add(
+                self.user_group_name,
+                self.channel_name
+            )
+            logger.debug('NotificationConsumer.connect: group_add ok for %s', self.user_group_name)
         except Exception as e:
-            logger.error(f"Notification WebSocket: Authentication error - {e}")
+            logger.exception('NotificationConsumer.group_add failed, closing connection')
             await self.close()
             return
-
-        await self.channel_layer.group_add(
-            self.user_group_name,
-            self.channel_name
-        )
         await self.accept()
         logger.info(f"Notification WebSocket accepted for user {self.user.username}")
 
     async def disconnect(self, close_code):
+        logger.info(f"Notification WebSocket disconnect for user_group={getattr(self, 'user_group_name', None)} close_code={close_code}")
         if self.user_group_name:
-            await self.channel_layer.group_discard(
-                self.user_group_name,
-                self.channel_name
-            )
+            try:
+                await self.channel_layer.group_discard(
+                    self.user_group_name,
+                    self.channel_name
+                )
+            except Exception:
+                logger.exception('Failed to discard notification group for user_group=%s', getattr(self, 'user_group_name', None))
 
     async def send_notification(self, event):
         await self.send(text_data=json.dumps({

@@ -5,17 +5,17 @@ import { useAuthStore } from '../stores/auth.store';
 
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:8000/api';
 
-// In-memory tokens (not persisted). These are intentionally kept only in module memory
-// so that we can use the access token for WebSocket subprotocols while keeping
-// HttpOnly cookies for normal HTTP requests.
-let inMemoryAccessToken: string | null = null;
-let inMemoryRefreshToken: string | null = null;
-
-export const getAccessToken = () => inMemoryAccessToken;
-export const setAccessToken = (token: string | null) => { inMemoryAccessToken = token; };
-export const getRefreshToken = () => inMemoryRefreshToken;
-export const setRefreshToken = (token: string | null) => { inMemoryRefreshToken = token; };
-export const clearTokens = () => { inMemoryAccessToken = null; inMemoryRefreshToken = null; };
+// Note: We now rely on HttpOnly cookies for authentication. The backend sets
+// `access` and `refresh` cookies on login and refresh endpoints. These cookies
+// are HttpOnly and cannot be accessed from JavaScript; axios will send them
+// automatically when `withCredentials` is true.
+// Optional in-memory token that is used only for WebSocket subprotocols when the
+// server returns a token in login/refresh payload. This is only a fallback and
+// doesn't change the cookie-backed auth flow.
+let wsSubprotocolToken: string | null = null;
+export const getWsSubprotocolToken = () => wsSubprotocolToken;
+export const setWsSubprotocolToken = (token: string | null) => { wsSubprotocolToken = token; };
+export const clearTokens = () => { /* no-op: tokens are cookie-backed */ wsSubprotocolToken = null; };
 
 const api = axios.create({
   baseURL: API_URL,
@@ -27,15 +27,10 @@ const api = axios.create({
 
 // Attach Authorization header when in-memory access token exists.
 // use a permissive `any` here to avoid strict axios internal type mismatches during build
+// With HttpOnly cookie-based authentication we do not add Authorization via JS.
+// Keep interceptor to return config unchanged and ensure `withCredentials`.
 api.interceptors.request.use((config: any) => {
-  const token = inMemoryAccessToken;
-  if (token) {
-    config.headers = config.headers || {};
-    // Only set Authorization if not already present
-    if (!('Authorization' in config.headers)) {
-      (config.headers as any).Authorization = `Bearer ${token}`;
-    }
-  }
+  config.withCredentials = true;
   return config;
 });
 
@@ -43,15 +38,11 @@ api.interceptors.request.use((config: any) => {
 let isRefreshing = false;
 let failedQueue: any[] = [];
 
-const processQueue = (error: any, token: string | null = null) => {
+const processQueue = (error: any) => {
   failedQueue.forEach(({ resolve, reject, config }: any) => {
     if (error) {
       reject(error);
     } else {
-      if (token) {
-        (config.headers as any) = config.headers || {};
-        (config.headers as any).Authorization = `Bearer ${token}`;
-      }
       resolve(api.request(config));
     }
   });
@@ -77,31 +68,14 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // Prefer using in-memory refresh token if available; otherwise send empty body and rely on cookie.
-        const refreshPayload = inMemoryRefreshToken ? { refresh: inMemoryRefreshToken } : {};
-        const response = await axios.post(`${API_URL}/auth/token/refresh/`, refreshPayload, { withCredentials: true });
-
-        const newAccess = response.data?.access;
-        const newRefresh = response.data?.refresh || inMemoryRefreshToken;
-
-        if (newAccess) {
-          setAccessToken(newAccess);
-        }
-        if (newRefresh) {
-          setRefreshToken(newRefresh);
-        }
-
-        processQueue(null, newAccess);
+        // Rely on cookie-based refresh: server will set HttpOnly `access` cookie.
+        await axios.post(`${API_URL}/auth/token/refresh/`, {}, { withCredentials: true });
+        processQueue(null);
         isRefreshing = false;
-
-        // Retry original request with new token
-        (originalRequest.headers as any) = originalRequest.headers || {};
-        if (newAccess) {
-          (originalRequest.headers as any).Authorization = `Bearer ${newAccess}`;
-        }
+        // Retry original request; the cookie set by the refresh response will be sent.
         return api.request(originalRequest);
       } catch (err) {
-        processQueue(err, null);
+        processQueue(err);
         isRefreshing = false;
         // On refresh failure, clear auth state and tokens
         try {
@@ -125,24 +99,24 @@ export const authService = {
       email,
       password,
     }).then(res => {
-      // Store tokens in memory so WebSocket hook can use them for subprotocol auth.
-      const data = res.data;
-      if (data?.access) setAccessToken(data.access);
-      if (data?.refresh) setRefreshToken(data.refresh);
-      return data;
+      // Server sets HttpOnly `access` and `refresh` cookies; don't store in JS.
+      // But save the access token in a short-lived in-memory variable only if
+      // it's included in the response to support optional WS subprotocol use.
+      if (res.data?.access) setWsSubprotocolToken(res.data.access);
+      return res.data;
     }),
 
   register: (data: any) =>
-    api.post<User>('/users/auth/register/', data).then(res => res.data),
-
-  refreshToken: (refresh?: string) => {
-    const payload = refresh || inMemoryRefreshToken ? { refresh: refresh || inMemoryRefreshToken } : {};
-    return api.post<{ access: string; refresh?: string }>('/auth/token/refresh/', payload).then(res => {
-      if (res.data?.access) setAccessToken(res.data.access);
-      if (res.data?.refresh) setRefreshToken(res.data.refresh);
+    api.post<{ access?: string; refresh?: string; user: User }>('/users/auth/register/', data).then(res => {
+      if (res?.data?.access) setWsSubprotocolToken(res.data.access);
       return res.data;
-    });
-  },
+    }),
+
+  refreshToken: () =>
+    api.post<{ access: string; refresh?: string }>('/auth/token/refresh/', {}, { withCredentials: true }).then(res => {
+      if (res?.data?.access) setWsSubprotocolToken(res.data.access);
+      return res.data;
+    }),
 
   logout: () => {
     clearTokens();

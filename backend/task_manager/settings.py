@@ -22,6 +22,10 @@ DEBUG = os.environ.get('DEBUG', '0') == '1'
 
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
+# Cookie settings for JWT authentication. For cross-site contexts (e.g., different
+# front-end origin), you may set COOKIE_SAMESITE=None and secure cookies in production.
+COOKIE_SAMESITE = os.environ.get('COOKIE_SAMESITE', 'Lax')  # 'Lax' or 'None'
+
 
 # Application definition
 
@@ -57,6 +61,9 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
+    # Custom cookie-to-authorization middleware so HttpOnly `access` cookie
+    # is converted to Authorization header for DRF Simple JWT authentication.
+    'apps.core.middleware.CookieToAuthHeaderMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -101,13 +108,13 @@ else:
             'NAME': os.environ.get('POSTGRES_DB', 'taskmanager'),
             'USER': os.environ.get('POSTGRES_USER', 'taskadmin'),
             'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'taskpass123'),
-            'HOST': os.environ.get('POSTGRES_HOST', 'postgres'),
+            'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
             'PORT': os.environ.get('POSTGRES_PORT', '5432'),
         }
     }
 
 # Redis & Channels
-REDIS_URL = os.environ.get('REDIS_URL', 'redis://redis:6379/0')
+REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
@@ -182,7 +189,7 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # Backend URL for building absolute URLs (used for file attachments)
 # In Docker/production: Nginx serves media, so use the public URL
 # In development: Use localhost with port
-BACKEND_URL = os.environ.get('BACKEND_URL', 'http://localhost')
+BACKEND_URL = os.environ.get('BACKEND_URL', 'http://localhost:8000')
 
 # File upload limits (25MB for attachments)
 DATA_UPLOAD_MAX_MEMORY_SIZE = 26214400  # 25MB

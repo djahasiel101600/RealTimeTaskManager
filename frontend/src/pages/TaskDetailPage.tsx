@@ -37,6 +37,7 @@ import { taskService, attachmentService, commentService, type Comment } from '@/
 import type { Task, TaskAttachment } from '@/types';
 import { cn } from '@/lib/utils';
 import ReasonDialog from '@/components/ReasonDialog';
+import ProposeAssignmentDialog from '@/components/ProposeAssignmentDialog';
 
 const statusConfig: Record<string, { label: string; color: string; bgColor: string }> = {
   todo: { label: 'To Do', color: 'text-slate-700', bgColor: 'bg-slate-100' },
@@ -207,6 +208,7 @@ export function TaskDetailPage() {
   // Modal state for reason
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [showReason, setShowReason] = useState(false);
+  const [showPropose, setShowPropose] = useState(false);
 
   const handleReasonConfirm = async (reason: string) => {
     if (!pendingStatus || !id) return;
@@ -617,6 +619,14 @@ export function TaskDetailPage() {
                     ) : (
                       <p className="text-sm text-slate-500">Unassigned</p>
                     )}
+                    {/* Propose assignment button for supervisors/ATLs */}
+                    {(user?.role === 'supervisor' || user?.role === 'atl') && (
+                      <div className="mt-3">
+                        <Button size="sm" variant="outline" onClick={() => setShowPropose(true)}>
+                          Propose
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -695,6 +705,21 @@ export function TaskDetailPage() {
           </div>
         </div>
       </div>
+    <ProposeAssignmentDialog
+      open={showPropose}
+      taskId={task ? task.id : (id ? parseInt(id) : 0)}
+      onClose={() => setShowPropose(false)}
+      onProposed={async () => {
+        // Refresh task details after proposing
+        if (!id) return;
+        try {
+          const updated = await taskService.getById(parseInt(id));
+          setTask(updated);
+        } catch (e) {
+          // ignore
+        }
+      }}
+    />
     </div>
   );
 }

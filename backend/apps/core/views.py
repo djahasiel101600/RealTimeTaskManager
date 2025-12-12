@@ -125,7 +125,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                     'access', access,
                     httponly=True,
                     secure=not settings.DEBUG,
-                    samesite='Lax',
+                    samesite=getattr(settings, 'COOKIE_SAMESITE', 'None'),
                     path='/',
                     max_age=int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds())
                 )
@@ -134,7 +134,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                     'refresh', refresh,
                     httponly=True,
                     secure=not settings.DEBUG,
-                    samesite='Lax',
+                    samesite=getattr(settings, 'COOKIE_SAMESITE', 'None'),
                     path='/',
                     max_age=int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds())
                 )
@@ -156,7 +156,7 @@ class CustomTokenRefreshView(TokenRefreshView):
                     'access', access,
                     httponly=True,
                     secure=not settings.DEBUG,
-                    samesite='Lax',
+                    samesite=getattr(settings, 'COOKIE_SAMESITE', 'None'),
                     path='/',
                     max_age=int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds())
                 )
@@ -178,11 +178,35 @@ class RegisterView(APIView):
             
             logger.info(f"New user registered: {user.id} - {user.email}")
             
-            return Response({
+            response = Response({
                 'user': UserRegistrationSerializer(user).data,
                 'refresh': str(refresh),
                 'access': str(refresh.access_token),
             }, status=status.HTTP_201_CREATED)
+            # Set cookies on registration (match login behavior)
+            try:
+                access = str(refresh.access_token)
+                response.set_cookie(
+                    'access', access,
+                    httponly=True,
+                    secure=not settings.DEBUG,
+                    samesite='Lax',
+                    path='/',
+                    max_age=int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds())
+                )
+                refresh_token = str(refresh)
+                response.set_cookie(
+                    'refresh', refresh_token,
+                    httponly=True,
+                    secure=not settings.DEBUG,
+                    samesite=getattr(settings, 'COOKIE_SAMESITE', 'None'),
+                    path='/',
+                    max_age=int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds())
+                )
+            except Exception:
+                logger.exception('Failed to set auth cookies on register')
+
+            return response
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

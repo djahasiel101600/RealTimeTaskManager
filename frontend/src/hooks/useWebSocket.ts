@@ -2,13 +2,21 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { useAuthStore } from '../stores/auth.store';
 import { useNotificationStore } from '../stores/notification.store';
 import { useChatStore } from '../stores/chat.store';
-import { getAccessToken } from '../services/api';
 import type { Message, Notification } from '../types';
+import { getWsSubprotocolToken } from '../services/api';
 
 interface WebSocketMessage {
   type: string;
   data: any;
 }
+
+// Shared module-level sockets/references so multiple hook instances don't create
+// duplicate connections. We maintain a reference count to only close when no
+// components are using the hook anymore.
+let moduleChatSocket: WebSocket | null = null;
+let moduleNotificationSocket: WebSocket | null = null;
+let moduleChatRefCount = 0;
+let moduleNotificationRefCount = 0;
 
 export const useWebSocket = () => {
   const { isAuthenticated } = useAuthStore();
@@ -40,9 +48,13 @@ export const useWebSocket = () => {
       return;
     }
     
-    // Don't create new connection if one is already open or connecting
-    if (socketRef.current?.readyState === WebSocket.OPEN || 
-        socketRef.current?.readyState === WebSocket.CONNECTING) {
+    // Don't create if a module-level socket already exists and is open/connecting
+    if ((moduleChatSocket && (moduleChatSocket.readyState === WebSocket.OPEN || moduleChatSocket.readyState === WebSocket.CONNECTING)) ||
+        (socketRef.current?.readyState === WebSocket.OPEN || socketRef.current?.readyState === WebSocket.CONNECTING)) {
+      // If a module-level socket exists, bind it to this hook's ref
+      if (moduleChatSocket) {
+        socketRef.current = moduleChatSocket;
+      }
       return;
     }
 
@@ -53,16 +65,33 @@ export const useWebSocket = () => {
     }
 
     const baseUrl = getWsBaseUrl();
-    const wsUrl = `${baseUrl}/ws/chat/`;
-    const token = getAccessToken();
-    console.log('Connecting to Chat WebSocket', wsUrl, token ? '(using subprotocol token)' : '(cookies)');
+    let wsUrl = `${baseUrl}/ws/chat/`;
+    const useSubprotocol = (import.meta as any).env?.VITE_WS_USE_SUBPROTOCOL === 'true';
+    let wsToken = useSubprotocol ? getWsSubprotocolToken() : null;
+    const isValidJwt = (t: string | null | undefined) => {
+      if (!t || typeof t !== 'string') return false;
+      const parts = t.split('.');
+      return parts.length === 3 && parts.every(Boolean);
+    };
+    if (!isValidJwt(wsToken as string)) {
+      wsToken = null;
+    }
+    console.log('Connecting to Chat WebSocket', wsUrl, '(cookies)');
     
     setChatStatus('connecting');
-    // Prefer using in-memory access token as WS subprotocol; fallback to cookie-based handshake
-    const socket = token ? new WebSocket(wsUrl, token) : new WebSocket(wsUrl);
+    // Use cookie-based authentication for WebSocket; do not pass the token as a subprotocol
+    const socketId = Math.random().toString(36).slice(2, 9);
+    // If a subprotocol token isn't being used, optionally append the token as a query param
+    const allowQueryToken = (import.meta as any).env?.VITE_WS_ALLOW_QUERY_TOKEN === 'true';
+    const fallbackToken = getWsSubprotocolToken();
+    if (!wsToken && allowQueryToken && isValidJwt(fallbackToken)) {
+      const token = encodeURIComponent(fallbackToken as string);
+      wsUrl = `${wsUrl}?token=${token}`;
+    }
+    const socket = wsToken ? new WebSocket(wsUrl, [wsToken]) : new WebSocket(wsUrl);
 
     socket.onopen = () => {
-      console.log('Chat WebSocket connected');
+      console.log(`Chat WebSocket connected [${socketId}]`);
       setChatStatus('connected');
       // reset reconnect attempts on success
       chatReconnectAttemptsRef.current = 0;
@@ -124,7 +153,7 @@ export const useWebSocket = () => {
     };
 
     socket.onclose = (event) => {
-      console.log('Chat WebSocket disconnected', event.code, event.reason);
+      console.log(`Chat WebSocket disconnected [${socketId}]`, event.code, event.reason, 'wasClean=', event.wasClean);
       setChatStatus('disconnected');
       socketRef.current = null;
       
@@ -140,10 +169,13 @@ export const useWebSocket = () => {
     };
 
     socket.onerror = (error) => {
-      console.error('Chat WebSocket error:', error);
+      console.error(`Chat WebSocket error [${socketId}]:`, error);
     };
 
+    // Store on both module and local refs, and increase module ref count
+    moduleChatSocket = socket;
     socketRef.current = socket;
+    moduleChatRefCount += 1;
   }, [isAuthenticated, getWsBaseUrl, addMessage, updateTypingStatus]);
 
   const connectNotifications = useCallback(() => {
@@ -152,9 +184,12 @@ export const useWebSocket = () => {
       return;
     }
     
-    // Don't create new connection if one is already open or connecting
-    if (notificationSocketRef.current?.readyState === WebSocket.OPEN || 
-        notificationSocketRef.current?.readyState === WebSocket.CONNECTING) {
+    // Don't create if a module-level socket already exists and is open/connecting
+    if ((moduleNotificationSocket && (moduleNotificationSocket.readyState === WebSocket.OPEN || moduleNotificationSocket.readyState === WebSocket.CONNECTING)) ||
+        (notificationSocketRef.current?.readyState === WebSocket.OPEN || notificationSocketRef.current?.readyState === WebSocket.CONNECTING)) {
+      if (moduleNotificationSocket) {
+        notificationSocketRef.current = moduleNotificationSocket;
+      }
       return;
     }
 
@@ -165,15 +200,32 @@ export const useWebSocket = () => {
     }
 
     const baseUrl = getWsBaseUrl();
-    const wsUrl = `${baseUrl}/ws/notifications/`;
-    const token = getAccessToken();
-    console.log('Connecting to Notification WebSocket', wsUrl, token ? '(using subprotocol token)' : '(cookies)');
+    let wsUrl = `${baseUrl}/ws/notifications/`;
+    const useSubprotocol = (import.meta as any).env?.VITE_WS_USE_SUBPROTOCOL === 'true';
+    let wsToken = useSubprotocol ? getWsSubprotocolToken() : null;
+    const isValidJwt = (t: string | null | undefined) => {
+      if (!t || typeof t !== 'string') return false;
+      const parts = t.split('.');
+      return parts.length === 3 && parts.every(Boolean);
+    };
+    if (!isValidJwt(wsToken as string)) {
+      wsToken = null;
+    }
+    console.log('Connecting to Notification WebSocket', wsUrl, '(cookies)', useSubprotocol ? '(subprotocol fallback enabled)' : '');
     
     setNotificationStatus('connecting');
-    const socket = token ? new WebSocket(wsUrl, token) : new WebSocket(wsUrl);
+    // Use cookie-based authentication for notification socket handshake
+    const socketId = Math.random().toString(36).slice(2, 9);
+    const allowQueryToken = (import.meta as any).env?.VITE_WS_ALLOW_QUERY_TOKEN === 'true';
+    const fallbackToken = getWsSubprotocolToken();
+    if (!wsToken && allowQueryToken && isValidJwt(fallbackToken)) {
+      const token = encodeURIComponent(fallbackToken as string);
+      wsUrl = `${wsUrl}?token=${token}`;
+    }
+    const socket = wsToken ? new WebSocket(wsUrl, [wsToken]) : new WebSocket(wsUrl);
 
     socket.onopen = () => {
-      console.log('Notification WebSocket connected');
+      console.log(`Notification WebSocket connected [${socketId}]`);
       setNotificationStatus('connected');
       // reset reconnect attempts on success
       notificationReconnectAttemptsRef.current = 0;
@@ -182,17 +234,23 @@ export const useWebSocket = () => {
     socket.onmessage = (event) => {
       try {
         const message: WebSocketMessage = JSON.parse(event.data);
-        
-        if (message.type === 'notification') {
+        // Support both 'notification' and legacy 'send_notification' envelopes
+        const msgType = message.type || (message.data && message.data.type) || '';
+
+        if (msgType === 'notification' || msgType === 'send_notification') {
+          // Backend sends notification payload under `data`
           addNotification(message.data as Notification);
+          return;
         }
+
+        // Unknown message types are ignored here (chat socket handles chat-specific types)
       } catch (e) {
         console.error('Failed to parse notification message:', e);
       }
     };
 
     socket.onclose = (event) => {
-      console.log('Notification WebSocket disconnected', event.code, event.reason);
+      console.log(`Notification WebSocket disconnected [${socketId}]`, event.code, event.reason, 'wasClean=', event.wasClean);
       setNotificationStatus('disconnected');
       notificationSocketRef.current = null;
       
@@ -208,10 +266,13 @@ export const useWebSocket = () => {
     };
 
     socket.onerror = (error) => {
-      console.error('Notification WebSocket error:', error);
+      console.error(`Notification WebSocket error [${socketId}]:`, error);
     };
 
+    // Store on both module and local refs, and increase module ref count
+    moduleNotificationSocket = socket;
     notificationSocketRef.current = socket;
+    moduleNotificationRefCount += 1;
   }, [isAuthenticated, getWsBaseUrl, addNotification]);
 
   // Connect when authentication state is available
@@ -230,19 +291,33 @@ export const useWebSocket = () => {
         clearTimeout(notificationReconnectTimeoutRef.current);
       }
       if (socketRef.current) {
-        socketRef.current.close();
+        try {
+          moduleChatRefCount = Math.max(0, moduleChatRefCount - 1);
+        } catch (e) {}
+        // Only close the module-level socket when no refs remain
+        if (moduleChatRefCount === 0 && moduleChatSocket) {
+          moduleChatSocket.close();
+          moduleChatSocket = null;
+        }
         socketRef.current = null;
       }
       if (notificationSocketRef.current) {
-        notificationSocketRef.current.close();
+        try {
+          moduleNotificationRefCount = Math.max(0, moduleNotificationRefCount - 1);
+        } catch (e) {}
+        if (moduleNotificationRefCount === 0 && moduleNotificationSocket) {
+          moduleNotificationSocket.close();
+          moduleNotificationSocket = null;
+        }
         notificationSocketRef.current = null;
       }
     };
   }, [isAuthenticated]); // Only depend on authentication state, not on the connect functions
 
   const joinRoom = useCallback((roomType: string, roomId: number) => {
-    if (socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({
+    const sock = socketRef.current || moduleChatSocket;
+    if (sock?.readyState === WebSocket.OPEN) {
+      sock.send(JSON.stringify({
         type: 'join_room',
         room_type: roomType,
         room_id: roomId
@@ -251,8 +326,9 @@ export const useWebSocket = () => {
   }, []);
 
   const leaveRoom = useCallback((roomType: string, roomId: number) => {
-    if (socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({
+    const sock = socketRef.current || moduleChatSocket;
+    if (sock?.readyState === WebSocket.OPEN) {
+      sock.send(JSON.stringify({
         type: 'leave_room',
         room_type: roomType,
         room_id: roomId
@@ -261,8 +337,9 @@ export const useWebSocket = () => {
   }, []);
 
   const sendMessage = useCallback((roomType: string, roomId: number, content: string) => {
-    if (socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({
+    const sock = socketRef.current || moduleChatSocket;
+    if (sock?.readyState === WebSocket.OPEN) {
+      sock.send(JSON.stringify({
         type: 'send_message',
         room_type: roomType,
         room_id: roomId,
@@ -272,8 +349,9 @@ export const useWebSocket = () => {
   }, []);
 
   const sendTypingIndicator = useCallback((roomType: string, roomId: number, isTyping: boolean) => {
-    if (socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({
+    const sock = socketRef.current || moduleChatSocket;
+    if (sock?.readyState === WebSocket.OPEN) {
+      sock.send(JSON.stringify({
         type: 'typing',
         room_type: roomType,
         room_id: roomId,

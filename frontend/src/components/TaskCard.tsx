@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
   Calendar, 
   User, 
+  Users,
   MoreVertical, 
   Paperclip,
   MessageSquare,
@@ -23,6 +24,7 @@ import type { Task, TaskStatus } from '@/types';
 import { useTaskStore } from '@/stores/task.store';
 import { useAuthStore } from '@/stores/auth.store';
 import ReasonDialog from './ReasonDialog';
+import ProposeAssignmentDialog from './ProposeAssignmentDialog';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { isTestEnv } from '@/lib/env';
@@ -69,6 +71,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick }) => {
 
   const [pendingStatus, setPendingStatus] = React.useState<TaskStatus | null>(null);
   const [isReasonOpen, setIsReasonOpen] = React.useState(false);
+  const [showPropose, setShowPropose] = React.useState(false);
 
   const doUpdate = async (newStatus: TaskStatus, reason?: string) => {
     try {
@@ -166,7 +169,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick }) => {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48" forceMount={isTestEnv() ? true : undefined}>
-                <DropdownMenuItem
+                  <DropdownMenuItem
                   onClick={(e: any) => {
                     e.stopPropagation();
                     navigate(`/tasks/${task.id}`);
@@ -176,6 +179,16 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick }) => {
                   <ExternalLink className="h-4 w-4" />
                   View Details
                 </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={(e: any) => {
+                      e.stopPropagation();
+                      setShowPropose(true);
+                    }}
+                    className="gap-2"
+                  >
+                    <Users className="h-4 w-4" />
+                    Propose Assignment
+                  </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 {getStatusOptions().map((option) => (
                   <DropdownMenuItem
@@ -295,6 +308,21 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick }) => {
           setPendingStatus(null);
         }}
       />
+      <ProposeAssignmentDialog
+        open={showPropose}
+        taskId={task.id}
+        onClose={() => setShowPropose(false)}
+        onProposed={(createdIds) => {
+          if (createdIds && createdIds.length > 0) {
+            // quick feedback; proposals don't update assigned_to until accepted
+            alert('Proposal sent');
+          }
+          setShowPropose(false);
+        }}
+      />
     </Card>
   );
 };
+
+// Mount propose dialog outside render to avoid re-creating handlers inside map
+export default TaskCard;

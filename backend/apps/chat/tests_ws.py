@@ -81,6 +81,26 @@ class WebSocketAuthTests(TransactionTestCase):
         # Expect connection to be rejected when no auth provided
         self.assertFalse(connected, 'WebSocket should reject unauthenticated connections')
 
+    def test_websocket_accepts_query_token(self):
+        # Login and extract token, then connect using query string (no cookie)
+        response = self.client.post('/api/auth/token/', data=json.dumps({
+            'email': self.email,
+            'password': self.password
+        }), content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        access_cookie = response.cookies.get('access')
+        token = access_cookie.value
+
+        communicator = WebsocketCommunicator(application, f'/ws/notifications/?token={token}')
+        connected, _ = async_to_sync(communicator.connect)()
+        try:
+            self.assertTrue(connected, 'WebSocket should accept connection when auth token provided in query string')
+        finally:
+            try:
+                async_to_sync(communicator.disconnect)()
+            except BaseException:
+                pass
+
     def test_direct_chat_send_receive(self):
         """Two users join a direct chat and receive each other's messages via group broadcast."""
         # Create second user
